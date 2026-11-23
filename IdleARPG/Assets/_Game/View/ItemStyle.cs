@@ -3,22 +3,42 @@ using UnityEngine;
 
 namespace Lanternkeeper.View
 {
-    /// <summary>How items look and read: rarity colours (GDD §8.1), Korean labels, icon keys, affix lines.</summary>
+    /// <summary>
+    /// How items look and read: rarity colours, Korean labels, icon keys, affix lines, the compare arrows. One meaning
+    /// per colour (UX plan §3.0): a rarity colour only on the name, the cell edge and the ◆ pips; green and red only for
+    /// gain and loss; element colours only on the element's own word; every stat line in the one body colour.
+    /// </summary>
     public static class ItemStyle
     {
+        // UX plan §3.0 (나): the colours that are not a rarity.
+        public const string BodyHex = "#E8E0D0", GainHex = "#5BD66B", LossHex = "#FF5A4D", SameHex = "#8A8178",
+            TradeHex = "#FFD24D", StarHex = "#FFCF5A";
+        /// <summary>The edge of a common piece's bag cell: there, but quieter than any rarity.</summary>
+        public static readonly Color CommonEdge = new Color32(0x5A, 0x56, 0x4E, 0xFF);
+
+        /// <summary>
+        /// UX plan §3.0 (가): Diablo's order (white, blue, yellow, orange) with the top rarity moved from dull gold to
+        /// violet — yellow, orange and gold sat too close and the best one was the least seen (audit #3).
+        /// </summary>
         public static Color Color(Rarity r)
         {
             switch (r)
             {
-                case Rarity.Magic: return new Color(0.45f, 0.62f, 1f);
-                case Rarity.Rare: return new Color(1f, 0.9f, 0.35f);
-                case Rarity.Legendary: return new Color(1f, 0.55f, 0.15f);
-                case Rarity.Unique: return new Color(0.86f, 0.72f, 0.38f);
-                default: return new Color(0.88f, 0.88f, 0.85f);
+                case Rarity.Magic: return new Color32(0x6F, 0xA0, 0xFF, 0xFF);
+                case Rarity.Rare: return new Color32(0xFF, 0xE4, 0x5C, 0xFF);
+                case Rarity.Legendary: return new Color32(0xFF, 0x8C, 0x26, 0xFF);
+                case Rarity.Unique: return new Color32(0xC7, 0x7D, 0xFF, 0xFF);
+                default: return new Color32(0xC8, 0xC8, 0xC0, 0xFF);
             }
         }
 
         public static string Hex(Rarity r) => "#" + ColorUtility.ToHtmlStringRGB(Color(r));
+
+        /// <summary>◆ to ◆◆◆◆◆: the rarity as a count, for whoever cannot tell the blue from the violet.</summary>
+        public static string Pips(Rarity r) => new string('◆', (int)r + 1);
+
+        /// <summary>"◆◆◆ 희귀" in the rarity's colour: the rarity always in shape and words beside the colour.</summary>
+        public static string Tag(Rarity r) => "<color=" + Hex(r) + ">" + Pips(r) + " " + RarityName(r) + "</color>";
 
         public static string RarityName(Rarity r)
         {
@@ -62,39 +82,112 @@ namespace Lanternkeeper.View
         public static bool IsJackpot(Item item) => item != null && (item.Rarity >= Rarity.Legendary || item.GreaterCount > 0);
 
         /// <summary>
-        /// 희승 11-22 (Diablo II's tooltip colours): a stat's colour by what it does — magic blue for the plain ones, its
-        /// element's colour for fire / frost / lightning, violet for what grows a build (area, copies, reach, cooldown,
-        /// resonance, chain), green for experience and finds. ★ lines are gold whatever their stat.
+        /// Where a stat line sits in a tooltip (UX plan A3): 0 공격, 1 방어, 2 스킬, 3 유틸. The kind of a stat is told by
+        /// this order, not by a colour — colouring lines by stat (11-22) used the rarity colours for a second meaning.
         /// </summary>
-        public static string StatHex(Stat s)
+        public static int Group(Stat s)
         {
             switch (s)
             {
-                case Stat.EmberPct: return "#ff8a4a";
-                case Stat.FrostPct: return "#8fd4ff";
-                case Stat.ShockPct: return "#ffe36a";
                 case Stat.AreaPct: case Stat.ProjectileCount: case Stat.RangePct: case Stat.CooldownPct:
-                case Stat.ResonancePct: case Stat.ChainRadiusPct: return "#c9a2ff";
-                case Stat.XpPct: case Stat.MagicFindPct: return "#8fe08f";
-                default: return "#8fa8ff";
+                case Stat.ResonancePct: case Stat.ChainRadiusPct: return 2;
+            }
+            int g = GameText.StatGroup(s); // 0 공격, 1 방어, 2 유틸
+            return g == 2 ? 3 : g;
+        }
+
+        /// <summary>An element stat's own word and colour (the only colour inside a stat line), or null.</summary>
+        static (string word, string hex)? ElementWord(Stat s)
+        {
+            switch (s)
+            {
+                case Stat.EmberPct: return ("잿불", "#FF8A4A");
+                case Stat.FrostPct: return ("서리", "#8FD4FF");
+                case Stat.ShockPct: return ("전격", "#FFE36A");
+                default: return null;
             }
         }
 
-        /// <summary>The words of a stat line with no colour (the item's base line is plain white).</summary>
-        public static string LineText(AffixRoll a, bool tier = false)
+        /// <summary>The words of a stat line with no colour.</summary>
+        public static string LineText(AffixRoll a, bool tier = false) => StatText(a.Stat, a.Value) + (tier && a.Tier > 0 ? $" [T{a.Tier}]" : "");
+
+        /// <summary>"공격력 +14", "받는 피해 −3%": a stat and its amount in the affix's own words, no colour.</summary>
+        public static string StatText(Stat s, float value)
         {
-            var def = ItemData.Affix(a.Stat);
-            string label = def != null ? def.Label : a.Stat.ToString() + " +{0}";
-            return string.Format(label, a.Value.ToString(a.Value % 1f == 0f ? "0" : "0.#")) + (tier && a.Tier > 0 ? $" [T{a.Tier}]" : "");
+            var def = ItemData.Affix(s);
+            string label = def != null ? def.Label : s.ToString() + " +{0}";
+            return string.Format(label, value.ToString(value % 1f == 0f ? "0" : "0.#"));
         }
 
+        /// <summary>
+        /// A stat line in the body colour: only an element's word wears its element colour, and on a ★ line only the ★
+        /// is gold (UX plan A3).
+        /// </summary>
         /// <param name="tier">False leaves the [Tn] tag off (the gear list is too narrow for it). Never cut it off afterwards:
         /// a line closes its colour after the tier, and a cut leaves the tag open and breaks the whole panel's rich text.</param>
         public static string Line(AffixRoll a, bool tier = true)
         {
             string line = LineText(a, tier);
-            // ★ 대옵션 lines stand out in gold; the rest take their stat's colour.
-            return a.Greater ? "<color=#ffcf5a>★ " + line + "</color>" : "<color=" + StatHex(a.Stat) + ">" + line + "</color>";
+            string body = "<color=" + BodyHex + ">" + line + "</color>";
+            var el = ElementWord(a.Stat);
+            if (el.HasValue && line.StartsWith(el.Value.word, System.StringComparison.Ordinal))
+                body = "<color=" + el.Value.hex + ">" + el.Value.word + "</color><color=" + BodyHex + ">" + line.Substring(el.Value.word.Length) + "</color>";
+            return (a.Greater ? "<color=" + StarHex + ">★</color> " : "") + body;
+        }
+
+        // ---------- the compare arrows (UX plan §3.0 다): the same glyph, colour and words wherever gear is judged ----------
+
+        /// <summary>▲▲ ▲ ▼ ⇄ ═; nothing for a piece above the hero's level (it gets "Lv N 필요", not an arrow).</summary>
+        public static string ArrowGlyph(GearArrow a)
+        {
+            switch (a)
+            {
+                case GearArrow.BigUp: return "▲▲";
+                case GearArrow.Up: return "▲";
+                case GearArrow.Down: return "▼";
+                case GearArrow.Trade: return "⇄"; // ◆ is the rarity pip only (loop 1: one glyph meant two things)
+                case GearArrow.Same: return "═";
+                default: return "";
+            }
+        }
+
+        public static string ArrowHex(GearArrow a)
+        {
+            switch (a)
+            {
+                case GearArrow.BigUp: case GearArrow.Up: return GainHex;
+                case GearArrow.Down: case GearArrow.Locked: return LossHex;
+                case GearArrow.Trade: return TradeHex;
+                default: return SameHex;
+            }
+        }
+
+        /// <summary>A ratio (1 = same) as a signed, coloured change: "+12%" green, "−2%" red, "±0%" grey.</summary>
+        public static string Pct(float ratio)
+        {
+            float pct = (ratio - 1f) * 100f;
+            if (Mathf.Abs(pct) < 0.05f) return "<color=" + SameHex + ">±0%</color>";
+            string n = Mathf.Abs(pct).ToString(Mathf.Abs(pct) < 10f ? "0.#" : "0");
+            return pct > 0f ? "<color=" + GainHex + ">+" + n + "%</color>" : "<color=" + LossHex + ">−" + n + "%</color>";
+        }
+
+        /// <summary>
+        /// The answer line of a tooltip (UX plan A4): "▲ 전투력 +12%   공격 +15% · 생존 −2%". A ◆ trade says 교환 in place
+        /// of one number (its two halves are the point) but still shows the power ratio, so it ends in a verdict
+        /// ("⇄ 교환 · 전투력 −3%  (공격 −33% · 생존 +17%)"); ═ says 비슷함.
+        /// <paramref name="effectName"/> is the tooltip's own word for the legendary line (전설 효과 / 고유 효과).
+        /// </summary>
+        public static string Verdict(GearCompare c, string effectName = "전설 효과")
+        {
+            bool trade = c.Arrow == GearArrow.Trade;
+            string head = trade ? "⇄ 교환 · 전투력" : c.Arrow == GearArrow.Same ? "═ 비슷함" : ArrowGlyph(c.Arrow) + " 전투력";
+            string s = "<color=" + ArrowHex(c.Arrow) + ">" + head + "</color>";
+            if (c.Arrow != GearArrow.Same) s += " " + Pct(c.Power);
+            string halves = "<color=" + BodyHex + ">공격</color> " + Pct(c.Offence) + " <color=" + SameHex + ">·</color> <color=" + BodyHex + ">생존</color> " + Pct(c.Survival);
+            if (c.Essences != 0)
+                halves += " <color=" + SameHex + ">·</color> <color=" + BodyHex + ">" + effectName + "</color> <color=" + (c.Essences > 0 ? GainHex : LossHex) + ">"
+                    + (c.Essences > 0 ? "+" : "−") + Mathf.Abs(c.Essences) + "</color>";
+            return s + (trade ? "  (" + halves + ")" : "   " + halves);
         }
     }
 }

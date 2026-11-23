@@ -83,6 +83,22 @@ namespace Lanternkeeper.Sim
         /// <summary>The player's own loot rules (재기획 §8), used when <see cref="Filter"/> is 직접.</summary>
         public readonly List<LootRule> CustomRules = LootFilter.StarterRules();
         public bool AutoEquip = true;
+        /// <summary>
+        /// The last auto-equip, kept so the gear window can put the old piece back (UX plan A6: what the game did on its
+        /// own can be undone). <see cref="AshPaid"/> &gt; 0 when the old piece already went to ash (자동 분해, or a full
+        /// bag): undo buys it back for what it gave. Not saved.
+        /// </summary>
+        public sealed class AutoSwap
+        {
+            public Item New, Old;
+            public EquipSpot Spot;
+            /// <summary>The 전투력 ratio the swap was made for.</summary>
+            public float Power;
+            public int AshPaid;
+        }
+        public AutoSwap LastAutoSwap { get; private set; }
+        /// <summary>Pieces the player took back off with the undo: auto-equip leaves them in the bag from then on.</summary>
+        public readonly HashSet<int> AutoEquipDeclined = new HashSet<int>();
         public int NextItemUid = 1;
         public bool FirstLegendaryGiven;
         public int Kills { get; private set; }
@@ -167,6 +183,7 @@ namespace Lanternkeeper.Sim
                 CustomRules = FlattenRules(CustomRules),
                 CustomRulesSet = true,
                 AutoEquip = AutoEquip,
+                AutoEquipDeclined = Bag.Items.FindAll(i => AutoEquipDeclined.Contains(i.Uid)).ConvertAll(i => i.Uid), // only what is still in the bag
                 LootRng = _lootRng.State,
                 CombatRng = _combatRng.State,
                 KillsPerMinute = KillsPerMinute,
@@ -300,6 +317,7 @@ namespace Lanternkeeper.Sim
             foreach (var e in s.Equipped)
                 if (e?.Item != null && e.Spot >= 0 && e.Spot < h.Gear.Spots.Length && ItemData.HasBase(e.Item.BaseId))
                 {
+                    ItemGen.AdoptForClass(e.Item, h.ClassId); // gear from before class bases becomes this class's
                     h.Gear.Spots[e.Spot] = e.Item;
                     maxUid = Math.Max(maxUid, e.Item.Uid);
                 }
@@ -311,7 +329,7 @@ namespace Lanternkeeper.Sim
             w._minuteKills0 = s.Kills;
             w.Bag.Items.Clear();
             foreach (var it in s.Bag)
-                if (it != null && ItemData.HasBase(it.BaseId)) { w.Bag.Items.Add(it); maxUid = Math.Max(maxUid, it.Uid); }
+                if (it != null && ItemData.HasBase(it.BaseId)) { ItemGen.AdoptForClass(it, h.ClassId); w.Bag.Items.Add(it); maxUid = Math.Max(maxUid, it.Uid); }
             w.NextItemUid = Math.Max(Math.Max(1, s.NextItemUid), maxUid + 1); // never reuse a uid
             w._dropsTotal = 0;
             w.Bag.AshShards = s.AshShards;
@@ -329,6 +347,7 @@ namespace Lanternkeeper.Sim
                         s.CustomRules[i + 2] == (int)LootAction.Salvage ? LootAction.Salvage : LootAction.Keep));
             }
             w.AutoEquip = s.AutoEquip;
+            if (s.AutoEquipDeclined != null) foreach (int uid in s.AutoEquipDeclined) w.AutoEquipDeclined.Add(uid);
             if (!string.IsNullOrEmpty(s.LootRng)) w._lootRng.State = s.LootRng;
             if (!string.IsNullOrEmpty(s.CombatRng)) w._combatRng.State = s.CombatRng;
             w.SeedEfficiency(s.KillsPerMinute, s.XpPerMinute,
@@ -1329,6 +1348,9 @@ namespace Lanternkeeper.Sim
                 var salvaged = Bag.Add(keep);
                 if (keep == item && salvaged != item) Remember(item);
             }
+            // A6: the piece the auto-equip took off may be ash already (자동 분해, or the full bag took it).
+            if (keep != item && LastAutoSwap != null && LastAutoSwap.Old == keep && !Bag.Items.Contains(keep))
+                LastAutoSwap.AshPaid = LootFilter.SalvageValue(keep);
             return item;
         }
 
@@ -1338,25 +1360,31 @@ namespace Lanternkeeper.Sim
             if (RecentDrops.Count > 3) RecentDrops.RemoveAt(3);
         }
 
-        /// <summary>Equips if the item is wearable and an upgrade; returns the replaced item (or the item itself if not equipped).</summary>
+        /// <summary>
+        /// Equips if the item is wearable and a ▲ (UX plan §3.0 다: 전투력 +1% or more, and not a ◆ trade — those stay in
+        /// the bag for the player to weigh, so auto-equip and the bag's arrows never disagree). Returns the replaced item
+        /// (or the item itself if not equipped). The event's Value is the 전투력 change.
+        /// </summary>
         public Item TryAutoEquip(Item item, out bool equipped)
         {
             equipped = false;
             if (item.ReqLevel > Hero.IntegratedLevel) return item; // GDD §8.2: compares with the 통합 레벨
-            EquipSpot best = default;
-            float bestScore = 1.001f, bestDps = 0f;
+            if (AutoEquipDeclined.Contains(item.Uid)) return item; // the player undid this one (A6)
+            GearCompare best = default;
+            bool found = false;
             foreach (var spot in Equipment.SpotsFor(item.Slot))
             {
                 if (Hero.Gear.Spots[(int)spot] is Item worn && worn.Locked) continue; // a locked piece stays on (잠금)
-                float s = HeroStats.Upgrade(Hero, item, spot, out float dps);
-                if (s > bestScore) { bestScore = s; best = spot; bestDps = dps; }
+                var c = HeroStats.Compare(Hero, item, spot);
+                if (c.AutoEquips && (!found || c.Power > best.Power)) { best = c; found = true; }
             }
-            if (bestScore <= 1.001f) return item;
-            var old = Hero.Gear.Equip(item, best);
+            if (!found) return item;
+            var old = Hero.Gear.Equip(item, best.Spot);
             HeroStats.Recompute(Hero);
             SocketRunes();
             equipped = true;
-            Events.Add(new SimEvent { Type = SimEventType.Equip, TargetId = item.Uid, Pos = Hero.Pos, Value = bestDps, Item = item });
+            LastAutoSwap = new AutoSwap { New = item, Old = old, Spot = best.Spot, Power = best.Power };
+            Events.Add(new SimEvent { Type = SimEventType.Equip, TargetId = item.Uid, Pos = Hero.Pos, Value = best.Power - 1f, Item = item });
             return old;
         }
 

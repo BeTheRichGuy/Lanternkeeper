@@ -72,7 +72,7 @@ namespace Lanternkeeper.View
             float aph = Mathf.Max(0f, (w.Bag.AshShards - first.ash) / span * 3600f);
             // Arrows against the reading a minute ago.
             if (_prevAt == 0f || now - _prevAt >= 60f) { _prevKpm = kpm; _prevXph = xph; _prevAph = aph; _prevDps = dps; _prevAt = now; }
-            _left.text = "분당 처치\n시간당 경험치\n시간당 잿 파편\n초당 피해";
+            _left.text = "분당 처치\n시간당 경험치\n시간당 잿 파편\n초당 피해(예상)";
             _right.text = Line(kpm, _prevKpm, kpm.ToString("0")) + "\n" + Line(xph, _prevXph, DamageNumbers.Short(xph))
                 + "\n" + Line(aph, _prevAph, DamageNumbers.Short(aph)) + "\n" + Line(dps, _prevDps, DamageNumbers.Short(dps));
         }

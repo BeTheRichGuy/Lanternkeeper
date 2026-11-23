@@ -25,17 +25,18 @@ namespace Lanternkeeper.View
         {
             _ui = ui;
             _world = world;
-            _win = ui.Window("Mailbox Panel", W, H, "기록", Toggle, out _, "ui/ui2_window_iron");
+            _win = ui.Window("Mailbox Panel", W, H, "이야기", Toggle, out _, "ui/ui2_window_iron");
             _count = UiKit.Label(_win, "", 20f, 32f, ListW, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             _list = UiKit.Rect(_win, "list", 16f, 52f, ListW, H - 76f);
             _list.gameObject.AddComponent<RectMask2D>(); // long hints stay one line, clipped at the list's edge
-            var paper = ui.Sprite(_win, "ui/ui2_parchment", ListW + 32f, 30f, W - ListW - 48f, H - 54f, sliced: true);
+            var paper = ui.Sprite(_win, "ui/ui2_parchment", ListW + 32f, 30f, W - ListW - 48f, H - 64f, sliced: true);
             paper.preserveAspect = false;
             paper.color = new Color(0.42f, 0.36f, 0.32f, 1f); // dark enough for light text, like the reliquary card
             _title = UiKit.Label(_win, "", ListW + 56f, 50f, W - ListW - 96f, 18f, 16, TextAnchor.UpperLeft, UiKit.Gold, title: true);
             _body = UiKit.Label(_win, "", ListW + 56f, 80f, W - ListW - 96f, H - 120f, 12, TextAnchor.UpperLeft, new Color(0.9f, 0.85f, 0.76f));
             _body.lineSpacing = 1.35f;
-            UiKit.Label(_win, "Q/E 넘기기 · U 닫기", 16f, H - 22f, W - 32f, 14f, 12, TextAnchor.UpperRight, UiKit.Dim);
+            // Inside the frame, bottom right, in the one form "(키) 닫기" every window uses; the paper stops above it.
+            UiKit.Label(_win, "Q/E 넘기기 · (U) 닫기", W - 232f, H - 30f, 212f, 14f, 12, TextAnchor.UpperRight, UiKit.Dim);
             SetVisible(false);
         }
 

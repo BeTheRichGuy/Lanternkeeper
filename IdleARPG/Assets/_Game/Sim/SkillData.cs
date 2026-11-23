@@ -623,13 +623,13 @@ namespace Lanternkeeper.Sim
 
         public static readonly RingPreset[] StarPresets =
         {
-            new RingPreset { Name = "화염", TalentFocus = 0, Ring = new[] { "fireball", "combustion", "meteor", "nebula_burst" },
+            new RingPreset { Name = "잿불", TalentFocus = 0, Ring = new[] { "fireball", "combustion", "meteor", "nebula_burst" },
                 Sigils = new[] { Sigil.Wide, Sigil.Execute, Sigil.Split, Sigil.Wide }, Ultimate = "star_collapse",
                 Priority = new[] { "fireball", "combustion", "meteor", "nebula_burst", "supernova" } },
-            new RingPreset { Name = "냉기", TalentFocus = 0, Ring = new[] { "ice_bolt", "ice_shatter", "frost_nova", "blizzard" },
+            new RingPreset { Name = "서리", TalentFocus = 0, Ring = new[] { "ice_bolt", "ice_shatter", "frost_nova", "blizzard" },
                 Sigils = new[] { Sigil.Echo, Sigil.Execute, Sigil.Wide, Sigil.Wide }, Ultimate = "eternal_moment",
                 Priority = new[] { "ice_bolt", "ice_shatter", "frost_nova", "blizzard", "starfall_field" } },
-            new RingPreset { Name = "번개", TalentFocus = 0, Ring = new[] { "chain_lightning", "thunder_nova", "lightning_storm", "ball_lightning" },
+            new RingPreset { Name = "전격", TalentFocus = 0, Ring = new[] { "chain_lightning", "thunder_nova", "lightning_storm", "ball_lightning" },
                 Sigils = new[] { Sigil.Chain, Sigil.Wide, Sigil.Split, Sigil.Split }, Ultimate = "star_collapse",
                 Priority = new[] { "chain_lightning", "thunder_nova", "lightning_storm", "ball_lightning" } },
             new RingPreset { Name = "붕괴 낙하", Ring = new[] { "black_hole", "meteor", "starfall_field", "nebula_burst" },

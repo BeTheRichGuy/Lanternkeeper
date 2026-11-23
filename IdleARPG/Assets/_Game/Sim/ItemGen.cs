@@ -190,6 +190,25 @@ namespace Lanternkeeper.Sim
 
         static float Round(float v) => (float)Math.Round(v, 1);
 
+        /// <summary>
+        /// 희승 11-23 "다른 직업들도 제대로 구현해줄래": a save from before class bases (11-22) has a starseer in a greatsword
+        /// and plate, a bag of axes. On load such an item takes the same slot's base of the hero's own class - its rarity,
+        /// affixes, sockets and runes stay; its implicit is the new base's at the item's level; a magic or plain item's
+        /// name follows the base. Uniques keep their own identity. True when it changed.
+        /// </summary>
+        public static bool AdoptForClass(Item it, string classId)
+        {
+            var b = it == null ? null : ItemData.Base(it.BaseId);
+            if (b == null || b.Fits(classId) || it.Rarity == Rarity.Unique) return false;
+            var mine = Array.FindAll(ItemData.Bases, x => x.Slot == b.Slot && x.ClassId == classId);
+            if (mine.Length == 0) return false;
+            var nb = mine[(it.Uid & int.MaxValue) % mine.Length];
+            it.Implicit = new AffixRoll { Stat = nb.ImplicitStat, Value = Round(nb.ImplicitValue * (1f + (it.Ilvl - 1) / 20f)), Tier = 0 };
+            if (!string.IsNullOrEmpty(it.Name) && it.Name.EndsWith(b.Name)) it.Name = it.Name.Substring(0, it.Name.Length - b.Name.Length) + nb.Name;
+            it.BaseId = nb.Id;
+            return true;
+        }
+
         /// <summary>투사체·분신 is a count: one copy per line (two from tier 7), never a fraction the floor would eat.</summary>
         static float WholeIfCount(Stat s, float v, int tier) => s == Stat.ProjectileCount ? (tier >= 7 ? 2f : 1f) : v;
     }

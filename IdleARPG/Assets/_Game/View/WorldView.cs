@@ -1744,8 +1744,16 @@ namespace Lanternkeeper.View
             }
             else v.AnimT += dt;
             int dir = IsoProjection.Dir8(u.Facing);
-            if (u is Hero spinner && spinner.WhirlUntil > _world.Time) dir = (int)(Time.time * 24f) & 7;
-            v.Sr.sprite = _catalog.GetAnim(v.Key, v.Anim, dir, v.AnimT, v.AnimLoop, v.AnimSpeed, out bool done, out bool flip);
+            bool done, flip;
+            if (u is Hero spinner && spinner.WhirlUntil > _world.Time && u.Alive && _catalog.HasAnim(v.Key, "attack"))
+            {
+                // 휠윈드: the swing's follow-through frame (blade held out) turned through the eight facings, two turns a
+                // second. The idle/walk frames spun before, the greatsword still on the back (희승 11-23: 너무 어색해).
+                dir = 7 - ((int)(Time.time * 16f) & 7); // clockwise
+                v.Sr.sprite = _catalog.GetAnim(v.Key, "attack", dir, _catalog.Duration(v.Key, "attack") * 0.5f, false, 1f, out _, out flip);
+                done = v.AnimDone;
+            }
+            else v.Sr.sprite = _catalog.GetAnim(v.Key, v.Anim, dir, v.AnimT, v.AnimLoop, v.AnimSpeed, out done, out flip);
             v.Sr.flipX = flip;
             v.AnimDone = done;
 

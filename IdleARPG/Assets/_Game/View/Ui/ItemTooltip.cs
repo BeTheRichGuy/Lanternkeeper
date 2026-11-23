@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using Lanternkeeper.Sim;
 using UnityEngine;
@@ -6,21 +7,33 @@ using UnityEngine.UI;
 namespace Lanternkeeper.View
 {
     /// <summary>
-    /// Item tooltip in Diablo II's manner (희승 11-22), centred, three blocks split by thin rules: head (name in rarity
-    /// colour, the base it is made on, rarity · slot · item level), body (the base line in white, then each stat in its
-    /// colour — magic blue, element colours, violet build stats, green finds, ★ lines gold —, the legendary power in
-    /// orange, sockets and runeword), foot (requirements and the compare line). Placed beside the slot it explains,
+    /// Item tooltip (UX plan A1–A5, "아이템 툴팁 최종 틀"), read top to bottom as the questions come: what is it (name in
+    /// its rarity colour, "◆◆◆ 희귀" at the right, base · item level · class), is it better (the arrow line and what it
+    /// is compared with — only when the caller passes a compare), what does it have (one stat a row in the one body
+    /// colour, grouped 공격 → 방어 → 스킬 → 유틸 with a hairline between groups, each row's change against the worn piece
+    /// at the right, the stats the swap would lose in red), then 전설 효과, runeword and the small print (sockets,
+    /// required level, salvage value). Rarity colour appears on the name row only. Placed beside the slot it explains,
     /// flipped to the other side and clamped so it never leaves the screen.
     /// </summary>
     public sealed class ItemTooltip
     {
-        public const float Width = 244f;
-        const float Pad = 8f, Gap = 5f;
+        public const float Width = 276f; // the arrow line ("▲ 전투력 +12%   공격 +15% · 생존 −2%") fits on one row
+        const float Pad = 8f, Gap = 5f, Inner = Width - Pad * 2f;
+        const string Dim = ItemStyle.SameHex, Body = ItemStyle.BodyHex;
+
+        sealed class Row { public Text Left, Right; }
+
         readonly UiKit _ui;
         readonly RectTransform _box;
         readonly Image _frame;
-        readonly Text _head, _body, _foot;
-        readonly Image _rule1, _rule2;
+        readonly Text _name, _tag, _sub, _verdict, _lost, _extra, _foot, _band;
+        readonly Image _rule1, _rule2, _bandBack;
+        readonly List<Stat> _rowStats = new List<Stat>(); // the stat of each row, for the group rules (a total row has no AffixRoll of its own)
+        const float BandH = 14f;
+        readonly List<Row> _rows = new List<Row>();
+        readonly List<Image> _groupRules = new List<Image>();
+        readonly List<AffixRoll> _lines = new List<AffixRoll>();
+        int _rowCount, _ruleCount;
         public bool Visible => _box.gameObject.activeSelf;
         public float Height => _box.sizeDelta.y;
 
@@ -34,84 +47,250 @@ namespace Lanternkeeper.View
             back.raycastTarget = false;
             _frame = ui.Sprite(_box, UiFrame.Tooltip, -3f, -3f, Width + 6f, 46f, sliced: true);
             _frame.preserveAspect = false;
-            _head = UiKit.Label(_box, "", Pad, Pad, Width - Pad * 2f, 20f, 12, TextAnchor.UpperCenter);
-            _rule1 = UiKit.Fill(_box, "rule", Pad, 0f, Width - Pad * 2f, 1f, UiKit.Line);
-            _body = UiKit.Label(_box, "", Pad, 0f, Width - Pad * 2f, 20f, 12, TextAnchor.UpperCenter);
-            _body.lineSpacing = 1.1f;
-            _rule2 = UiKit.Fill(_box, "rule", Pad, 0f, Width - Pad * 2f, 1f, UiKit.Line);
-            _foot = UiKit.Label(_box, "", Pad, 0f, Width - Pad * 2f, 20f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+            _bandBack = UiKit.Fill(_box, "band", 0f, 0f, Width, BandH, new Color(0.34f, 0.32f, 0.3f, 0.85f)); // "착용 중" / "가방": which side of the compare this is
+            _band = UiKit.Label(_box, "", 0f, 0f, Width, BandH, 12, TextAnchor.MiddleCenter, new Color(0.9f, 0.87f, 0.8f));
+            _name = UiKit.Label(_box, "", Pad, Pad, Inner, 14f, 12); // one Galmuri size: 14 would sit between pixels
+            _tag = UiKit.Label(_box, "", Pad, Pad, Inner, 14f, 12, TextAnchor.UpperRight);
+            _sub = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _verdict = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12);
+            _rule1 = UiKit.Fill(_box, "rule", Pad, 0f, Inner, 1f, UiKit.Line);
+            _lost = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12);
+            _rule2 = UiKit.Fill(_box, "rule", Pad, 0f, Inner, 1f, UiKit.Line);
+            _extra = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12);
+            _foot = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             _box.gameObject.SetActive(false);
         }
 
         public void Hide() => _box.gameObject.SetActive(false);
 
-        /// <summary>Fills the blocks. <paramref name="foot"/> may be empty (no rule, no block).</summary>
-        public void Show(Item item, string foot, string corner = null)
+        /// <summary>
+        /// Fills the tooltip. <paramref name="foot"/> is the caller's own last line (may be empty).
+        /// <paramref name="compare"/> adds the answer line under the head; <paramref name="worn"/> (the piece in the
+        /// compared spot, or null for an empty one) adds each row's change and the lost stats.
+        /// </summary>
+        public void Show(Item item, string foot, string corner = null, GearCompare? compare = null, Item worn = null, string band = null)
         {
             var sb = new StringBuilder();
-            sb.Append("<color=").Append(ItemStyle.Hex(item.Rarity)).Append(">").Append(item.Name).Append("</color>"); // one Galmuri size: 14 would sit between pixels
-            if (!string.IsNullOrEmpty(corner)) sb.Append("  <color=#8a8178>").Append(corner).Append("</color>");
-            // The base it is made on, as Diablo II prints under a magic or better item's name.
+            _band.text = band ?? "";
+            _name.text = "<color=" + ItemStyle.Hex(item.Rarity) + ">" + item.Name + "</color>"
+                + (string.IsNullOrEmpty(corner) ? "" : "  <color=" + Dim + ">" + corner + "</color>");
+            _tag.text = ItemStyle.Tag(item.Rarity);
+
+            // What it is made on (or its slot, for a common piece that is its own base) · item level · whose it is.
             var baseDef = ItemData.Base(item.BaseId);
-            if (item.Rarity > Rarity.Common && baseDef != null && baseDef.Name != item.Name)
-                sb.Append("\n<color=#d8d0c4>").Append(baseDef.Name).Append("</color>");
-            sb.Append("\n<color=#8a8178>").Append(ItemStyle.RarityName(item.Rarity)).Append(" ").Append(SlotName(item.Slot))
-              .Append(" · 아이템 레벨 ").Append(item.Ilvl);
+            sb.Append(baseDef != null && baseDef.Name != item.Name ? baseDef.Name : SlotName(item.Slot)).Append(" · 아이템 레벨 ").Append(item.Ilvl);
+            if (baseDef?.ClassId != null) sb.Append(" · ").Append(SkillBook.ClassName(baseDef.ClassId));
             if (item.Masterwork > 0) sb.Append(" · 명품화 +").Append(item.Masterwork);
-            sb.Append("</color>");
-            _head.text = sb.ToString();
+            _sub.text = sb.ToString();
+
+            // The answer first (UX plan A4): the old compare sat dim at the very bottom and was missed (audit #5).
+            sb.Clear();
+            if (compare is GearCompare c)
+            {
+                if (c.Arrow == GearArrow.Locked) sb.Append("<color=").Append(ItemStyle.LossHex).Append(">Lv ").Append(item.ReqLevel).Append(" 필요</color>");
+                else sb.Append(ItemStyle.Verdict(c, EffectName(item.Rarity)));
+                sb.Append("\n<color=").Append(Dim).Append(">↔ ");
+                string spot = item.Slot == Slot.Ring ? (c.Spot == EquipSpot.Ring2 ? "반지 2" : "반지 1") : null;
+                if (worn == null) sb.Append(spot != null ? spot + " 빈 칸에 장착" : "빈 칸에 장착");
+                else sb.Append(spot != null ? spot + "와 비교: " : "착용 중: ").Append("</color><color=").Append(Body).Append(">").Append(worn.Name);
+                sb.Append("</color>");
+            }
+            _verdict.text = sb.ToString();
+
+            // The base's own line and the affixes, by group; the base's line leads its group.
+            _lines.Clear();
+            _rowStats.Clear();
+            _rowCount = _ruleCount = 0;
+            for (int g = 0; g <= 3; g++)
+            {
+                if (item.Implicit.Value != 0f && ItemStyle.Group(item.Implicit.Stat) == g) _lines.Add(item.Implicit);
+                foreach (var a in item.Affixes) if (ItemStyle.Group(a.Stat) == g) _lines.Add(a);
+            }
+            for (int li = 0; li < _lines.Count; li++)
+            {
+                var a = _lines[li];
+                var row = NextRow();
+                _rowStats.Add(a.Stat);
+                // A stat on two lines (base and affix) is tagged 기본 / 추가, and its total and change get a line of their own
+                // under them (loop 2: "합 +49.9%" at the right of the second line read as that line's own change).
+                bool first = _lines.FindIndex(x => x.Stat == a.Stat) == li;
+                bool last = _lines.FindIndex(li + 1, x => x.Stat == a.Stat) < 0;
+                bool twice = !first || !last;
+                bool hasBase = item.Implicit.Value != 0f && item.Implicit.Stat == a.Stat; // two plain affixes of one stat get no tags
+                string tag = twice && hasBase ? "<color=" + Dim + ">" + (first ? "기본" : "추가") + "</color> " : "";
+                row.Right.text = !twice && worn != null ? Change(a.Stat, item.Sum(a.Stat), worn.Sum(a.Stat)) : "";
+                string line = tag + ItemStyle.Line(a, tier: false);
+                float room = Inner - (row.Right.text.Length > 0 ? row.Right.preferredWidth + 6f : 0f);
+                row.Left.rectTransform.sizeDelta = new Vector2(room, 14f);
+                row.Left.text = a.Greater ? line + "  <color=" + Dim + ">대옵션 ×1.5</color>" : line;
+                if (a.Greater && row.Left.preferredWidth > room) row.Left.text = line + "  <color=" + Dim + ">×1.5</color>"; // a long stat: the words give way
+                if (twice && last)
+                {
+                    var sum = NextRow();
+                    _rowStats.Add(a.Stat);
+                    sum.Right.text = "";
+                    sum.Left.rectTransform.sizeDelta = new Vector2(Inner, 14f);
+                    sum.Left.text = "<color=" + Dim + ">합 " + Amount(a.Stat, item.Sum(a.Stat)) + "</color>"
+                        + (worn != null ? "  " + Change(a.Stat, item.Sum(a.Stat), worn.Sum(a.Stat)) : "");
+                }
+            }
+
+            // What the swap takes away (UX plan A5): stats the worn piece has and this one lacks.
+            sb.Clear();
+            if (worn != null)
+            {
+                foreach (var def in ItemData.Affixes)
+                {
+                    float had = worn.Sum(def.Stat);
+                    if (had <= 0f || item.Sum(def.Stat) > 0f) continue;
+                    sb.Append(sb.Length == 0 ? "잃는 옵션: " : ", ").Append(ItemStyle.StatText(def.Stat, had));
+                }
+                var gone = !string.IsNullOrEmpty(worn.EssenceId) && worn.EssenceId != item.EssenceId ? ItemData.Essence(worn.EssenceId) : null;
+                if (gone != null) sb.Append(sb.Length == 0 ? "잃는 옵션: " : ", ").Append(EffectName(worn.Rarity)).Append(" 「").Append(gone.Text).Append("」");
+            }
+            _lost.text = sb.Length > 0 ? "<color=" + ItemStyle.LossHex + ">" + sb + "</color>" : "";
 
             sb.Clear();
-            if (item.Implicit.Value != 0f) sb.Append("<color=#f2e6cf>").Append(ItemStyle.LineText(item.Implicit)).Append("</color>\n");
-            foreach (var a in item.Affixes) sb.Append(ItemStyle.Line(a, tier: false)).Append('\n');
             if (!string.IsNullOrEmpty(item.EssenceId))
             {
                 var ess = ItemData.Essence(item.EssenceId);
-                if (ess != null) sb.Append("\n<color=#ff9a40>◆ 고유 능력</color>\n<color=#ffb870>").Append(ess.Text).Append("</color>\n");
+                if (ess != null) sb.Append("<color=").Append(ItemStyle.Hex(item.Rarity)).Append(">").Append(EffectName(item.Rarity)).Append("</color><color=").Append(Body).Append(">: ").Append(ess.Text).Append("</color>\n");
             }
+            var rw = item.Runeword;
+            if (rw != null) sb.Append("<color=#FFFFFF>룬어 『").Append(rw.Name).Append("』</color><color=").Append(Body).Append(">: ").Append(rw.Text).Append("</color>\n");
+            _extra.text = sb.ToString().TrimEnd('\n');
+
+            // The small print on one line: sockets (● filled, ○ empty) · required level · what salvaging gives.
+            sb.Clear();
             if (item.Sockets > 0)
             {
-                var rw = item.Runeword;
-                sb.Append('\n');
-                if (rw != null) sb.Append("<color=#d9c78a>룬어 『").Append(rw.Name).Append("』</color>\n<color=#bfb59a>").Append(rw.Text).Append("</color>\n");
-                sb.Append("<color=#9a9aa8>소켓 (").Append(item.Sockets).Append(")  ");
-                for (int k = 0; k < item.Sockets; k++)
-                    sb.Append(k < item.RuneSlots.Count ? Runes.Name((Rune)item.RuneSlots[k]) + " " : "◇ ");
-                sb.Append("</color>\n");
+                sb.Append("소켓 ");
+                for (int k = 0; k < item.Sockets; k++) sb.Append(k < item.RuneSlots.Count ? '●' : '○');
+                if (item.RuneSlots.Count > 0)
+                {
+                    sb.Append(" (");
+                    for (int k = 0; k < item.RuneSlots.Count; k++) sb.Append(k > 0 ? "·" : "").Append(Runes.Name((Rune)item.RuneSlots[k]));
+                    sb.Append(")");
+                }
+                sb.Append(" · ");
             }
-            _body.text = sb.ToString().TrimEnd('\n');
-            _foot.text = foot ?? "";
+            if (item.ReqLevel > 1) sb.Append("요구 레벨 ").Append(item.ReqLevel).Append(" · ");
+            sb.Append("분해 ").Append(LootFilter.SalvageValue(item)).Append(" 잿 파편");
+            if (!string.IsNullOrEmpty(foot)) sb.Append('\n').Append(foot);
+            _foot.text = sb.ToString();
+
             Layout();
             _box.gameObject.SetActive(true);
             _box.SetAsLastSibling();
         }
 
+        /// <summary>
+        /// A row's change against the worn piece: "(+3)" green, "(−1%)" red, "(새 옵션)" when the worn one has none of
+        /// it, nothing when equal. A stat whose label counts down (받는 피해 −N%) keeps the label's sign, so more of it
+        /// reads "(−1%)" in green.
+        /// </summary>
+        /// <summary>A stat's amount alone, as its lines print it ("+44.8%", "−12%").</summary>
+        static string Amount(Stat s, float v)
+        {
+            var def = ItemData.Affix(s);
+            bool countsDown = def != null && def.Label.Contains("−{0}");
+            return (countsDown ? "−" : "+") + v.ToString(v % 1f == 0f ? "0" : "0.#") + (def != null && def.Percent ? "%" : "");
+        }
+
+        /// <summary>"전설 효과" or "고유 효과": the line's head follows the item's own rarity (loop 1: a 고유 said 전설).</summary>
+        public static string EffectName(Rarity r) => r == Rarity.Unique ? "고유 효과" : "전설 효과";
+
+        static string Change(Stat s, float now, float before)
+        {
+            if (before <= 0f) return "<color=" + ItemStyle.GainHex + ">(새 옵션)</color>";
+            float d = now - before;
+            if (Mathf.Abs(d) < 0.05f) return "";
+            var def = ItemData.Affix(s);
+            bool countsDown = def != null && def.Label.Contains("−{0}");
+            float abs = Mathf.Abs(d);
+            return "<color=" + (d > 0f ? ItemStyle.GainHex : ItemStyle.LossHex) + ">(" + (d > 0f != countsDown ? "+" : "−")
+                + abs.ToString(abs % 1f == 0f ? "0" : "0.#") + (def != null && def.Percent ? "%" : "") + ")</color>";
+        }
+
+        Row NextRow()
+        {
+            if (_rowCount == _rows.Count)
+                _rows.Add(new Row
+                {
+                    Left = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12),
+                    Right = UiKit.Label(_box, "", Pad, 0f, Inner, 14f, 12, TextAnchor.UpperRight),
+                });
+            return _rows[_rowCount++];
+        }
+
+        Image NextGroupRule()
+        {
+            if (_ruleCount == _groupRules.Count)
+                _groupRules.Add(UiKit.Fill(_box, "group rule", Pad, 0f, Inner, 1f, new Color(1f, 0.85f, 0.6f, 0.08f)));
+            return _groupRules[_ruleCount++];
+        }
+
         void Layout()
         {
-            float y = Pad;
-            float hh = Mathf.Ceil(_head.preferredHeight);
-            Place(_head.rectTransform, y, hh);
-            y += hh + Gap;
+            bool banded = _band.text.Length > 0;
+            _band.enabled = _bandBack.enabled = banded;
+            Place(_band.rectTransform, 0f, BandH);
+            Place(_bandBack.rectTransform, 0f, BandH);
+            float y = Pad + (banded ? BandH : 0f);
+            // Name at the left, "◆◆◆ 희귀" at the right of the same row; a long name wraps short of the tag.
+            _name.rectTransform.sizeDelta = new Vector2(Inner - Mathf.Ceil(_tag.preferredWidth) - 6f, 14f);
+            Place(_tag.rectTransform, y, 14f);
+            y = Stack(_name, y, 2f);
+            y = Stack(_sub, y, 3f);
+            y = Stack(_verdict, y, 0f);
+            y += Gap;
             Place(_rule1.rectTransform, y, 1f);
             y += 1f + Gap;
-            float bh = Mathf.Ceil(_body.preferredHeight);
-            Place(_body.rectTransform, y, bh);
-            y += bh;
-            bool foot = _foot.text.Length > 0;
-            _rule2.enabled = foot;
-            _foot.enabled = foot;
-            if (foot)
+
+            int group = -1;
+            for (int i = 0; i < _rows.Count; i++)
             {
-                y += Gap;
-                Place(_rule2.rectTransform, y, 1f);
-                y += 1f + Gap;
-                float fh = Mathf.Ceil(_foot.preferredHeight);
-                Place(_foot.rectTransform, y, fh);
-                y += fh;
+                var row = _rows[i];
+                bool on = i < _rowCount;
+                row.Left.enabled = row.Right.enabled = on;
+                if (!on) continue;
+                int g = ItemStyle.Group(_rowStats[i]);
+                if (group >= 0 && g != group)
+                {
+                    y += 2f;
+                    Place(NextGroupRule().rectTransform, y, 1f);
+                    y += 3f;
+                }
+                group = g;
+                float h = Mathf.Ceil(row.Left.preferredHeight);
+                Place(row.Left.rectTransform, y, h);
+                Place(row.Right.rectTransform, y, h);
+                y += h + 1f;
             }
+            for (int i = 0; i < _groupRules.Count; i++) _groupRules[i].enabled = i < _ruleCount;
+            if (_lost.text.Length > 0) y += 2f;
+            y = Stack(_lost, y, 0f);
+
+            _rule2.enabled = true;
+            y += Gap;
+            Place(_rule2.rectTransform, y, 1f);
+            y += 1f + Gap;
+            y = Stack(_extra, y, 3f);
+            y = Stack(_foot, y, 0f);
             y += Pad;
             _box.sizeDelta = new Vector2(Width, y);
             _frame.rectTransform.sizeDelta = new Vector2(Width + 6f, y + 6f);
+        }
+
+        /// <summary>Puts a text block at <paramref name="y"/> at its own height and returns the y under it; an empty one takes no room.</summary>
+        static float Stack(Text t, float y, float gapAfter)
+        {
+            bool on = t.text.Length > 0;
+            t.enabled = on;
+            if (!on) return y;
+            float h = Mathf.Ceil(t.preferredHeight);
+            Place(t.rectTransform, y, h);
+            return y + h + gapAfter;
         }
 
         static void Place(RectTransform rt, float y, float h)
@@ -137,6 +316,37 @@ namespace Lanternkeeper.View
             x = Mathf.Clamp(x, -half.x + 2f, half.x - w - 2f);
             float y = Mathf.Clamp(tl.y, -half.y + h + 2f, half.y - 2f);
             _box.anchoredPosition = new Vector2(Mathf.Round(x), Mathf.Round(y));
+        }
+
+        /// <summary>Fixed on the left of <paramref name="window"/>, top-aligned with it (UX loop 2 P0-1: beside the hovered cell the
+        /// tooltips covered the bag, the orb and the skill bar).</summary>
+        public void PlaceLeftOf(RectTransform window, float gap = 8f)
+        {
+            var corners = new Vector3[4];
+            window.GetWorldCorners(corners);
+            Vector2 tl = _ui.Root.InverseTransformPoint(corners[1]);
+            var half = _ui.Root.rect.size * 0.5f;
+            float x = Mathf.Clamp(tl.x - gap - Width, -half.x + 2f, half.x - Width - 2f);
+            float y = Mathf.Clamp(tl.y, -half.y + _box.sizeDelta.y + 2f, half.y - 2f);
+            _box.anchoredPosition = new Vector2(Mathf.Round(x), Mathf.Round(y));
+            _box.SetAsLastSibling(); // the left half is where the character window stands: stay above it
+        }
+
+        /// <summary>Left of another tooltip, or under it when there is no room on the left of the screen.</summary>
+        public void PlaceLeftOrBelow(ItemTooltip other)
+        {
+            var half = _ui.Root.rect.size * 0.5f;
+            var p = other._box.anchoredPosition;
+            float x = p.x - Width - 4f;
+            float y = p.y;
+            if (x < -half.x + 2f)
+            {
+                x = p.x;
+                y = p.y - other._box.sizeDelta.y - 4f;
+            }
+            y = Mathf.Clamp(y, -half.y + _box.sizeDelta.y + 2f, half.y - 2f);
+            _box.anchoredPosition = new Vector2(Mathf.Round(x), Mathf.Round(y));
+            _box.SetAsLastSibling();
         }
 
         /// <summary>Right next to another tooltip (the compare one sits on the far side of the first).</summary>

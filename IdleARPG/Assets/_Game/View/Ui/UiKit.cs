@@ -132,15 +132,18 @@ namespace Lanternkeeper.View
         /// <param name="frameKey">A drawn 9-slice frame (e.g. ui/ui2_window_iron); the ornate stone frame if null or missing.</param>
         public const string BoneFrame = "ui/ui4_window_bone";
 
+        /// <summary>Where the top-centre HUD (level, ETA, the next goal) ends, in reference pixels.</summary>
+        public const float TopHudBottom = 66f; // the frames' spikes stand ~14 px over the window
+
         /// <summary>
         /// How far a window of height <paramref name="h"/> sits above the centre: as in Diablo II the bottom panel stays in
-        /// view, so a tall window rises until its bottom clears the bone bar (y 600 of 720), keeping 22 px over its top for
-        /// the wax.
+        /// view, so a tall window rises until its bottom clears the bone bar (y 600 of 720) — but never over the top-centre
+        /// HUD: a newcomer lost the 다음: line under every open window (loop 1). A tall one gives up the bar first.
         /// </summary>
         public static float Lift(float h)
         {
             float top = RefHeight / 2f - h / 2f, bottom = RefHeight / 2f + h / 2f;
-            return Mathf.Max(0f, Mathf.Min(bottom - 600f, top - 22f));
+            return Mathf.Max(0f, Mathf.Min(bottom - 600f, top - TopHudBottom)); // never over the level and 다음: lines (loop 1 P0-6)
         }
 
         public RectTransform Window(string name, float w, float h, string title, Action onClose, out Text titleText, string frameKey = null)
@@ -158,8 +161,8 @@ namespace Lanternkeeper.View
             var frame = bone ? Sprite(win, key, -8f, -16f, w + 16f, h + 24f, sliced: true) : Sprite(win, key, -4f, -4f, w + 8f, h + 8f, sliced: true);
             frame.preserveAspect = false;
             if (bone) { frame.type = Image.Type.Tiled; frame.fillCenter = false; } // the art's inside is not quite empty
-            Fill(win, "title band", 4f, 4f, w - 8f, 22f, new Color(1f, 0.85f, 0.55f, 0.06f));
-            titleText = Label(win, title, 12f, 6f, w - 60f, 20f, 16, TextAnchor.UpperLeft, Gold, title: true);
+            Fill(win, "title band", 4f, 5f, w - 8f, 22f, new Color(1f, 0.85f, 0.55f, 0.06f));
+            titleText = Label(win, title, 12f, 9f, w - 60f, 20f, 16, TextAnchor.UpperLeft, Gold, title: true); // 3 px under the wax drips (loop 2)
             var close = Button(win, "×", w - 28f, 5f, 20f, 18f, onClose);
             close.GetComponentInChildren<Text>().fontSize = 12;
             return win;

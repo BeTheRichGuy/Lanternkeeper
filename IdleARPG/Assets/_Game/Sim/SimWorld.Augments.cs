@@ -10,6 +10,12 @@ namespace Lanternkeeper.Sim
     /// </summary>
     public sealed partial class SimWorld
     {
+        /// <summary>
+        /// UX plan B7 (audit #9: the cards were picked for the player before they could be read): a first life's three
+        /// cards wait for the player's hand; after a rebirth the idle default picks again.
+        /// </summary>
+        public static bool AugmentWaitsForPlayer(Hero h) => h.Rebirths == 0;
+
         /// <summary>The waiting deal is chosen for the player after <see cref="Augments.AutoPickSeconds"/> (off in tests).</summary>
         public bool AutoPickAugments = true;
 
@@ -24,7 +30,7 @@ namespace Lanternkeeper.Sim
                 if (Hero.Augments.Count < Augments.SlotsAt(Hero.Level) && Time >= _nextDealAt) DealAugments();
                 return;
             }
-            if (AutoPickAugments && Time - Hero.AugOfferAt >= Augments.AutoPickSeconds)
+            if (AutoPickAugments && !AugmentWaitsForPlayer(Hero) && Time - Hero.AugOfferAt >= Augments.AutoPickSeconds)
                 ChooseAugment(Augments.BestPick(Hero.AugOffer, BranchInUse()));
         }
 

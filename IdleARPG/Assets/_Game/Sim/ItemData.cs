@@ -96,11 +96,11 @@ namespace Lanternkeeper.Sim
         /// <summary>Ashknight essences (GDD §8.5). Three are wired into combat in M1 (see SimWorld).</summary>
         public static readonly EssenceDef[] Essences =
         {
-            new EssenceDef { Id = "ember_echo",    Adjective = "메아리치는",    Text = "잿불 베기가 한 번 더 발동" },
-            new EssenceDef { Id = "shatter_chain", Adjective = "산산조각 내는", Text = "파쇄 지점에서 연쇄 폭발 발생" },
-            new EssenceDef { Id = "long_chain",    Adjective = "끝없는",        Text = "각인 사망 연쇄 최대 횟수 +2" },
-            new EssenceDef { Id = "ash_feast",     Adjective = "재를 먹는",     Text = "각인된 적 처치 시 최대 생명력 2% 회복" },
-            new EssenceDef { Id = "wide_whirl",    Adjective = "휘몰아치는",    Text = "대검 회전 범위 +40%" },
+            new EssenceDef { Id = "ember_echo",    Adjective = "메아리치는",    Text = "잿불 베기를 쓰면 같은 적을 한 번 더 벱니다" },
+            new EssenceDef { Id = "shatter_chain", Adjective = "산산조각 내는", Text = "파쇄가 터진 자리에서 잿불 폭발이 한 번 더 일어납니다" },
+            new EssenceDef { Id = "long_chain",    Adjective = "끝없는",        Text = "각인된 적이 죽을 때 번지는 폭발이 최대 2번 더 이어집니다" },
+            new EssenceDef { Id = "ash_feast",     Adjective = "재를 먹는",     Text = "각인된 적을 처치할 때마다 최대 생명력의 2%를 회복합니다" },
+            new EssenceDef { Id = "wide_whirl",    Adjective = "휘몰아치는",    Text = "휠윈드가 도는 범위가 40% 넓어집니다" },
         };
 
         /// <summary>GDD §8.6: uniques appear from Lv15 (none reachable in act I zone 1; defined for the drop table).</summary>

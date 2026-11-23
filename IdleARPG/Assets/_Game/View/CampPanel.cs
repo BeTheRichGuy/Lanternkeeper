@@ -16,6 +16,8 @@ namespace Lanternkeeper.View
     public sealed class CampPanel
     {
         const float W = 880f, H = 480f;
+        /// <summary>Mirrors Item.Sum: every stat of the piece gets +8% of its base per 명품화 step (Sim/Items.cs).</summary>
+        const int MasterworkStepPct = 8;
         readonly UiKit _ui;
         readonly SimWorld _world;
         readonly RectTransform _win, _detail;
@@ -33,28 +35,40 @@ namespace Lanternkeeper.View
         string _noteText = "";
         float _noteAt = -10f;
 
-        /// <summary>Stations: name, prop, drawn size, left x, what it is for.</summary>
-        static readonly (string name, string prop, float size, float x, string what)[] Stations =
+        /// <summary>Stations: name, prop, drawn size, left x, what it is for, and the grey one-liner under its name.</summary>
+        static readonly (string name, string prop, float size, float x, string what, string fn)[] Stations =
         {
-            ("대장장이", "prop/camp_blacksmith_forge", 128f, 24f, "명품화로 모든 옵션 강화 · 옵션 한 줄 재굴림 · 새 줄 벼리기"),
-            ("기름 저장고", "prop/camp_oil_store", 96f, 168f, "오프라인 사냥 가능 시간을 늘린다."),
-            ("지도 제작자", "prop/camp_cartographer_table", 96f, 280f, "사냥터 선택 방식을 하나씩 개방한다."),
-            ("잔불", "prop/camp_campfire", 64f, 408f, "레벨 상한에서 환생한다. 장비는 그대로 유지하고, 잔불만큼 강해져 다시 내려간다."),
-            ("변환 제단", "prop/shrine_altar", 96f, 560f, "가장 많이 모인 룬 3개를 다음 룬 하나로 변환한다."),
-            ("수상한 행상인", "prop/merchant", 128f, 690f, "고른 부위의 미확인 장비 판매 · 마법 이상 · 아이템 발견 +150%"),
+            ("대장장이", "prop/camp_blacksmith_forge", 128f, 24f, "명품화 모든 옵션 강화 · 재굴림 옵션 한 줄 다시 뽑기 · 재련 옵션 줄 추가", "장비 강화"),
+            ("기름 저장고", "prop/camp_oil_store", 96f, 168f, "오프라인 사냥 가능 시간을 늘린다.", "방치 시간 늘리기"),
+            ("지도 제작자", "prop/camp_cartographer_table", 96f, 280f, "사냥터 선택 방식을 하나씩 개방한다.", "사냥 방식 개방"),
+            ("잔불", "prop/camp_campfire", 64f, 408f, "레벨 상한에서 환생한다. 장비는 그대로 유지하고, 잔불만큼 강해져 다시 내려간다.", "환생 · 다시 시작"),
+            ("변환 제단", "prop/shrine_altar", 96f, 560f, "가장 많이 모인 룬 3개를 다음 룬 하나로 변환한다.", "룬 승급"),
+            ("수상한 행상인", "prop/merchant", 128f, 690f, "고른 부위의 미확인 장비 판매 · 마법 이상 · 아이템 발견 +150%", "미확인 장비 구매"),
         };
 
-        static readonly string[] Quotes =
+        /// <summary>One speaker per station (the index into <see cref="Stations"/>); the fire and the altar do not talk.</summary>
+        static readonly (int station, string line)[] Quotes =
         {
-            "대장장이: \"쇳물도 별에서 왔지. 나는 그걸 다시 별처럼 벼릴 뿐이야.\"",
-            "대장장이: \"무른 쇠는 없어. 덜 두드린 쇠가 있을 뿐.\"",
-            "기름지기: \"기름이 마르면 등불도, 당신도 끝이야. 아껴 쓰라고.\"",
-            "기름지기: \"당신이 잠든 사이에도 심지는 탄다. 그걸 지키는 게 내 일이지.\"",
-            "지도 제작자: \"길은 내가 그려. 내려가는 건 당신 몫이고.\"",
-            "지도 제작자: \"아래로 갈수록 지도가 젖어. 핏덩이 소굴 근처는 특히.\"",
-            "수상한 상인: \"안을 들여다보면 값이 오르지. 그러니 묻지 마.\"",
-            "수상한 상인: \"전설이 나오면 내 운이고, 안 나오면 당신 운이지.\"",
+            (0, "대장장이: \"쇳물도 별에서 왔지. 나는 그걸 다시 별처럼 벼릴 뿐이야.\""),
+            (0, "대장장이: \"무른 쇠는 없어. 덜 두드린 쇠가 있을 뿐.\""),
+            (1, "기름지기: \"기름이 마르면 등불도, 당신도 끝이야. 아껴 쓰라고.\""),
+            (1, "기름지기: \"당신이 잠든 사이에도 심지는 탄다. 그걸 지키는 게 내 일이지.\""),
+            (2, "지도 제작자: \"길은 내가 그려. 내려가는 건 당신 몫이고.\""),
+            (2, "지도 제작자: \"아래로 갈수록 지도가 젖어. 핏덩이 소굴 근처는 특히.\""),
+            (5, "수상한 상인: \"안을 들여다보면 값이 오르지. 그러니 묻지 마.\""),
+            (5, "수상한 상인: \"전설이 나오면 내 운이고, 안 나오면 당신 운이지.\""),
         };
+
+        /// <summary>The line of the picked station only (it used to be one random line for the whole camp).</summary>
+        string QuoteFor(int station)
+        {
+            int n = 0;
+            foreach (var q in Quotes) if (q.station == station) n++;
+            if (n == 0) return "";
+            int pick = _quote % n;
+            foreach (var q in Quotes) if (q.station == station && pick-- == 0) return "<i>" + q.line + "</i>";
+            return "";
+        }
 
         public CampPanel(UiKit ui, SimWorld world)
         {
@@ -79,15 +93,17 @@ namespace Lanternkeeper.View
                 var prop = ui.Sprite(_win, ui.Catalog.Has(st.prop) ? st.prop : "ui/dot", st.x, ground - st.size, st.size, st.size);
                 prop.raycastTarget = true;
                 _stationName[i] = UiKit.Label(_win, st.name, st.x - 20f, ground + 6f, st.size + 40f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+                UiKit.Label(_win, st.fn, st.x + st.size * 0.5f - 52f, ground + 20f, 104f, 12f, 11, TextAnchor.UpperCenter, new Color(0.46f, 0.44f, 0.41f));
                 var p = prop.gameObject.AddComponent<UiPointer>();
                 p.LeftClick = () => { _station = index; _stamp = -1; };
                 p.Enter = () => { if (_station != index) _stationName[index].color = UiKit.Ink; };
                 p.Exit = () => { if (_station != index) _stationName[index].color = UiKit.Dim; };
             }
-            _quoteText = UiKit.Label(_win, "", 16f, ground + 24f, W - 32f, 14f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.61f, 0.55f));
+            // 28 px below the facility captions (11-23 loop 2 #13: the quote ran into them and read as one block).
+            _quoteText = UiKit.Label(_win, "", 16f, ground + 61f, W - 32f, 14f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.61f, 0.55f));
 
             // ---------- the station card ----------
-            _detail = UiKit.Rect(_win, "detail", 16f, ground + 46f, W - 32f, H - ground - 70f);
+            _detail = UiKit.Rect(_win, "detail", 16f, ground + 74f, W - 32f, H - ground - 98f);
             var back = _detail.gameObject.AddComponent<Image>();
             back.color = new Color(0f, 0f, 0f, 0.3f);
             back.raycastTarget = false;
@@ -111,7 +127,7 @@ namespace Lanternkeeper.View
 
         void SetVisible(bool v)
         {
-            if (v && !Visible) _quote = UnityEngine.Random.Range(0, Quotes.Length);
+            if (v && !Visible) _quote = UnityEngine.Random.Range(0, 1000);
             Visible = v;
             _win.gameObject.SetActive(v);
             if (!v) { _tip.Hide(); foreach (var s in _spots) s.ClearHover(); }
@@ -191,7 +207,11 @@ namespace Lanternkeeper.View
         {
             var b = _ui.Button(_detail, text, x, y, w, 19f, () => Buy(which));
             b.interactable = enabled;
-            b.GetComponentInChildren<Text>().color = enabled ? UiKit.Gold : UiKit.Dim;
+            // A refused button reads as a dark bar with light text (grey on grey was unreadable) and says why in its words.
+            var cb = b.colors;
+            cb.disabledColor = new Color(0.102f, 0.102f, 0.102f, 1f);
+            b.colors = cb;
+            b.GetComponentInChildren<Text>().color = enabled ? UiKit.Gold : new Color(0.69f, 0.69f, 0.69f);
             _cardBits.Add(b.gameObject);
         }
 
@@ -202,7 +222,7 @@ namespace Lanternkeeper.View
             var w = _world;
             var h = w.Hero;
             _purse.text = "잿 파편 <color=#ffcf5a>" + w.Bag.AshShards.ToString("N0") + "</color>   등불 기름 <color=#ffcf5a>" + w.Bag.LanternOil + "</color>";
-            _quoteText.text = "<i>" + Quotes[_quote % Quotes.Length] + "</i>";
+            _quoteText.text = QuoteFor(_station);
             _note.text = _noteText;
             for (int i = 0; i < Stations.Length; i++) _stationName[i].color = i == _station ? UiKit.Gold : UiKit.Dim;
 
@@ -277,29 +297,38 @@ namespace Lanternkeeper.View
             if (item == null) { CardText(ItemStyle.SpotName((EquipSpot)_spot) + " · 비어 있음", cx, 30f, cw, 14f, UiKit.Dim); return; }
             CardText("<color=" + ItemStyle.Hex(item.Rarity) + ">" + item.Name + "</color>  +" + item.Masterwork, cx, 30f, cw, 14f);
             bool mwMax = item.Masterwork >= SimWorld.MaxMasterwork;
-            CardButton(mwMax ? "명품화 최대" : "[1] 명품화 +" + (item.Masterwork + 1) + " · " + Cost(SimWorld.MasterworkCost(item.Masterwork)), cx, 50f, cw, 0, !mwMax);
+            CardButton(mwMax ? "명품화 최대" : "[1] 명품화 +" + (item.Masterwork + 1) + " · 모든 옵션 +" + MasterworkStepPct + "% · " + Cost(SimWorld.MasterworkCost(item.Masterwork)), cx, 50f, cw, 0, !mwMax);
             // Affix lines: click one to pick it for the reroll.
             int budget = Item.StabilityBudget(item.Rarity);
-            CardText("옵션  <color=#8a8178>안정도 " + item.StabilityLeft + " / " + budget + (item.RerollLine >= 0 ? " · " + (item.RerollLine + 1) + "번 줄만" : "") + "</color>",
+            // 안정도 is the crafting budget of the piece (the costs are on the buttons); it never breaks the item.
+            CardText("옵션  <color=#8a8178>안정도 " + item.StabilityLeft + " / " + budget + " (재굴림·재련에 쓰는 횟수)</color>",
                 12f, 76f, 360f, 14f, UiKit.Dim);
             if (_line >= item.Affixes.Count) _line = 0;
             for (int a = 0; a < item.Affixes.Count; a++)
             {
                 int line = a;
                 bool sel = a == _line, locked = item.RerollLine >= 0 && item.RerollLine != a;
-                var t = CardText((sel ? "▶ " : "   ") + ItemStyle.Line(item.Affixes[a]), 12f, 94f + a * 16f, 360f, 14f,
+                var t = CardText((sel ? "▶ " : "   ") + ItemStyle.Line(item.Affixes[a], false)
+                    + (item.Affixes[a].Tier > 0 ? "  <color=#8a8178>" + item.Affixes[a].Tier + "단계</color>" : ""), 12f, 94f + a * 16f, 360f, 14f,
                     locked ? new Color(0.4f, 0.38f, 0.35f) : sel ? UiKit.Gold : UiKit.Ink);
                 t.raycastTarget = true;
                 var p = t.gameObject.AddComponent<UiPointer>();
                 p.LeftClick = () => { _line = line; _stamp = -1; };
             }
-            string why = budget == 0 ? "이 등급은 재굴림할 수 없습니다" : item.StabilityLeft < SimWorld.RerollStability ? "안정도가 소진되었습니다" : "이 줄은 재굴림할 수 없습니다";
+            // One bar per action, so two identical sentences no longer leave it unclear which one is 재굴림 and which 재련.
+            string FixedWhy(string key, string action) => "[" + key + "] " + action + " — " + (item.Rarity == Rarity.Unique ? "고유 등급은 못 함" : "일반 등급은 못 함 (마법 이상부터)");
+            string why = budget == 0 ? FixedWhy("2", "재굴림")
+                : item.StabilityLeft < SimWorld.RerollStability ? "안정도가 " + SimWorld.RerollStability + " 미만이라 재굴림을 못 합니다"
+                : "재굴림은 처음 고른 " + (item.RerollLine + 1) + "번 줄만 계속할 수 있습니다";
             bool canReroll = item.Affixes.Count > 0 && SimWorld.CanReroll(item, _line);
             CardButton(canReroll ? "[2] " + (_line + 1) + "번 줄 재굴림 · 잿 파편 " + SimWorld.RerollCost(item.Rerolls).ash + " · 안정도 " + SimWorld.RerollStability
                 : item.Affixes.Count == 0 ? "재굴림할 옵션이 없습니다" : why, cx, 76f, cw, 1, canReroll);
             bool canTemper = SimWorld.CanTemper(item);
-            CardButton(canTemper ? "[3] 재련: 줄 추가 · 잿 파편 " + SimWorld.TemperCost(item).ash + " · 기름 1 · 안정도 " + SimWorld.TemperStability
-                : SimWorld.MaxAffixes(item.Rarity) == 0 ? "이 등급은 재련할 수 없습니다" : item.Affixes.Count >= SimWorld.MaxAffixes(item.Rarity) ? "옵션 줄이 가득 찼습니다" : "안정도가 부족합니다",
+            CardButton(canTemper ? "[3] 재련 · 옵션 줄 추가 · 잿 파편 " + SimWorld.TemperCost(item).ash + " · 기름 1 · 안정도 " + SimWorld.TemperStability
+                : SimWorld.MaxAffixes(item.Rarity) == 0 ? FixedWhy("3", "재련")
+                : item.Affixes.Count >= SimWorld.MaxAffixes(item.Rarity) ? "옵션 줄이 가득 찼습니다 (최대 " + SimWorld.MaxAffixes(item.Rarity) + "줄)"
+                : item.StabilityLeft >= SimWorld.TemperStability ? "더할 수 있는 옵션이 없습니다"
+                : "안정도가 " + SimWorld.TemperStability + " 미만이라 재련을 못 합니다",
                 cx, 100f, cw, 2, canTemper);
         }
     }

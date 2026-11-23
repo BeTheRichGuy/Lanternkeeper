@@ -51,11 +51,22 @@ namespace Lanternkeeper.Tests
         }
 
         [Test]
-        public void Nobody_choosing_picks_one_after_thirty_seconds()
+        public void Nobody_choosing_picks_one_after_thirty_seconds_after_a_rebirth()
         {
             var w = new SimWorld(5, "starseer");
+            w.Hero.Rebirths = 1;
             for (int i = 0; i < 310; i++) w.Tick();
             Assert.That(w.Hero.Augments.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void A_first_life_card_waits_for_the_player()
+        {
+            // UX plan B7: a first life's three cards are never picked for the player.
+            var w = new SimWorld(5, "starseer");
+            for (int i = 0; i < 310; i++) w.Tick();
+            Assert.That(w.Hero.Augments.Count, Is.EqualTo(0));
+            Assert.That(w.Hero.AugOffer, Is.Not.Null);
         }
 
         [Test]

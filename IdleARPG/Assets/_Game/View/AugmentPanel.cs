@@ -133,7 +133,7 @@ namespace Lanternkeeper.View
             c.Name = UiKit.Label(c.Face, "", 10f, 108f, CardW - 20f, 40f, 15, TextAnchor.UpperCenter, UiKit.Gold, title: true);
             c.Body = UiKit.Label(c.Face, "", 14f, 150f, CardW - 28f, 64f, 12, TextAnchor.UpperCenter, UiKit.Ink);
             c.Branch = UiKit.Label(c.Face, "", 10f, CardH - 52f, CardW - 20f, 14f, 11, TextAnchor.UpperCenter, UiKit.Dim);
-            c.Note = UiKit.Label(c.Face, "", 10f, CardH - 34f, CardW - 20f, 28f, 11, TextAnchor.UpperCenter, new Color(0.79f, 0.64f, 1f));
+            c.Note = UiKit.Label(c.Face, "", 10f, CardH - 34f, CardW - 20f, 28f, 12, TextAnchor.UpperCenter, new Color(1f, 0.6f, 0.25f)); // a warning, at body size (UX plan B7)
             // A dark film over the card that steps back while another is under the pointer (fading it let the world show through).
             c.Shade = UiKit.Fill(c.Root, "shade", 0f, 0f, CardW, CardH, Color.clear);
             return c;
@@ -182,7 +182,7 @@ namespace Lanternkeeper.View
             _flashA = 0f;
             var w = _world;
             int slot = w.Hero.Augments.Count + 1;
-            _title.text = "증강 카드 · " + slot + "번째 칸" + (w.Hero.Rebirths > 0 ? "  <color=#8a8178>(" + (w.Hero.Rebirths + 1) + "번째 삶)</color>" : "");
+            _title.text = "증강 카드 · " + slot + "번째 칸 (3칸 중)" + (slot < 3 ? "  <color=#8a8178>다음 칸 Lv " + (slot == 1 ? 20 : 40) + "</color>" : "") + (w.Hero.Rebirths > 0 ? "  <color=#8a8178>(" + (w.Hero.Rebirths + 1) + "번째 삶)</color>" : "");
             // The rarest turns over last: the suspense of the deal.
             var order = new int[3] { 0, 1, 2 };
             Array.Sort(order, (a, b) =>
@@ -224,7 +224,7 @@ namespace Lanternkeeper.View
             c.Icon.sprite = _ui.Catalog.Has(icon) ? _ui.Catalog.Get(icon) : _ui.Catalog.Get("icon/item_amulet");
             c.Branch.text = a.Branch >= 0 ? "갈래 · " + Talents.BranchName(_world.Hero.ClassId, a.Branch) : "공용";
             bool turns = a.Branch >= 0 && a.Branch != _world.BranchInUse() && _world.Hero.AugSwitchSets && _world.Hero.TreeAuto;
-            c.Note.text = turns ? "고르면 「" + Talents.BranchName(_world.Hero.ClassId, a.Branch) + "」 스킬 세트로 전환" : "";
+            c.Note.text = turns ? "고르면 지금 스킬 4개가 「" + Talents.BranchName(_world.Hero.ClassId, a.Branch) + "」 세트로 바뀝니다" : "";
         }
 
         string IconFor(AugmentDef a)
@@ -330,7 +330,8 @@ namespace Lanternkeeper.View
             else
             {
                 int left = Mathf.Max(0, Mathf.CeilToInt((float)(Augments.AutoPickSeconds - (_world.Time - _world.Hero.AugOfferAt))));
-                _foot.text = "카드를 눌러 선택  ·  " + left + "초 뒤 자동 선택";
+                _foot.text = SimWorld.AugmentWaitsForPlayer(_world.Hero) ? "카드를 눌러 선택  ·  영구 강화입니다. 천천히 고르세요"
+                    : "카드를 눌러 선택  ·  " + left + "초 뒤 자동 선택";
             }
             if (_picked >= 0 && now - _pickedAt > 1.1f) _root.gameObject.SetActive(false);
         }

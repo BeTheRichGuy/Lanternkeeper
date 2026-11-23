@@ -116,10 +116,6 @@ namespace Lanternkeeper.View
             _subtitle = NewText(center, font, Vector3.zero, TextAnchor.MiddleCenter, 0.05f);
             _subtitle.alignment = TextAlignment.Center;
             _subtitle.gameObject.SetActive(false);
-            _event = NewText(center, font, new Vector3(0f, -0.62f, 0f), TextAnchor.UpperCenter, 0.034f);
-            _event.richText = true;
-            _event.alignment = TextAlignment.Center;
-            _event.gameObject.SetActive(false);
 
             var top = _top = new GameObject("Boss").transform;
             top.SetParent(camera, false);
@@ -240,36 +236,7 @@ namespace Lanternkeeper.View
         readonly string[] _ringShown = new string[4];
         readonly Sigil[] _sigilShown = { (Sigil)(-1), (Sigil)(-1), (Sigil)(-1), (Sigil)(-1) };
         readonly SpriteRenderer _gaugeBack, _gaugeFill, _heatFill;
-        readonly TextMesh _preset, _event;
-        SimWorld.OfferedEvent _eventShown;
-        int _eventSecondsShown = -1;
-
-        /// <summary>GDD §6.2: the offered event, its options (1/2/3) and the seconds left before the default is taken.</summary>
-        void RenderEvent()
-        {
-            var p = _world.PendingEvent;
-            // The augment cards hold the centre; the event's line waits behind them (both printed on one spot).
-            if (p == null || _world.Hero.AugOffer != null)
-            {
-                if (_eventShown != null) { _eventShown = null; _event.gameObject.SetActive(false); }
-                return;
-            }
-            int secs = Mathf.CeilToInt((p.DeadlineTick - _world.TickCount) * SimWorld.Dt);
-            if (p == _eventShown && secs == _eventSecondsShown) return;
-            _eventShown = p;
-            _eventSecondsShown = secs;
-            var sb = new System.Text.StringBuilder();
-            sb.Append("<b>").Append(p.Title).Append("</b>\n");
-            for (int i = 0; i < p.Options.Length; i++)
-            {
-                bool def = i == p.Default;
-                sb.Append(def ? "<color=#ffd38a>" : "<color=#cfc6b8>").Append('[').Append(i + 1).Append("] ").Append(p.Options[i]).Append("</color>");
-                sb.Append(i < p.Options.Length - 1 ? "    " : "\n");
-            }
-            sb.Append("<color=#8f877c>").Append(secs).Append("초 뒤 기본값</color>");
-            _event.text = sb.ToString();
-            _event.gameObject.SetActive(true);
-        }
+        readonly TextMesh _preset;
         int _presetShown = -1;
         float _gaugeShown;
 
@@ -499,8 +466,7 @@ namespace Lanternkeeper.View
                 RenderRing(k);
                 RenderTip();
             }
-            RenderEvent();
-            RenderSubtitle(dt);
+            RenderSubtitle(dt); // the event's choices moved to View/Ui/EventPrompt (UX plan D7)
         }
 
         void RenderRecentDrops()

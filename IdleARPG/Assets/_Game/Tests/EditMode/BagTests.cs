@@ -137,5 +137,59 @@ namespace Lanternkeeper.Tests
             var back = SimWorld.FromSave(w.ToSave());
             Assert.That(back.Bag.Items.Single(x => x.Uid == it.Uid).Locked, Is.True);
         }
+
+        [Test]
+        public void Undo_salvage_puts_the_piece_back_in_its_place_and_takes_the_ash_back()
+        {
+            var w = World();
+            var a = Make(w, Rarity.Magic, Slot.Belt);
+            var b = Make(w, Rarity.Rare, Slot.Belt);
+            var c = Make(w, Rarity.Rare, Slot.Boots);
+            w.Bag.Items.AddRange(new[] { a, b, c });
+            int ash = w.Bag.AshShards;
+            Assert.That(w.SalvageFromBag(b.Uid), Is.True);
+            Assert.That(w.CanUndoSalvage, Is.True);
+            Assert.That(w.UndoSalvage(), Is.True);
+            Assert.That(w.Bag.Items, Is.EqualTo(new[] { a, b, c }), "same place");
+            Assert.That(w.Bag.AshShards, Is.EqualTo(ash));
+            Assert.That(w.UndoSalvage(), Is.False, "one undo per salvage");
+        }
+
+        [Test]
+        public void Undo_salvage_refuses_when_the_ash_is_spent_or_the_bag_is_full()
+        {
+            var w = World();
+            var it = Make(w, Rarity.Rare, Slot.Belt);
+            w.Bag.Items.Add(it);
+            w.SalvageFromBag(it.Uid);
+            w.Bag.AshShards = 0; // spent
+            Assert.That(w.CanUndoSalvage, Is.False);
+            Assert.That(w.UndoSalvage(), Is.False);
+            Assert.That(w.Bag.Items, Has.No.Member(it));
+
+            w.Bag.AshShards = w.LastSalvagedAsh;
+            for (int i = 0; i < Bag.Capacity; i++) w.Bag.Items.Add(Make(w, Rarity.Common, Slot.Amulet));
+            Assert.That(w.UndoSalvage(), Is.False, "no place for it");
+            Assert.That(w.Bag.Items, Has.No.Member(it));
+        }
+
+        [Test]
+        public void Bulk_salvage_counts_match_what_it_takes_per_rarity()
+        {
+            var w = World();
+            var locked = Make(w, Rarity.Rare, Slot.Belt);
+            locked.Locked = true;
+            w.Bag.Items.AddRange(new[]
+            {
+                Make(w, Rarity.Common, Slot.Belt), Make(w, Rarity.Magic, Slot.Belt), Make(w, Rarity.Magic, Slot.Boots),
+                locked, Make(w, Rarity.Legendary, Slot.Belt),
+            });
+            var n = w.BulkSalvageCounts();
+            Assert.That(n[(int)Rarity.Common], Is.EqualTo(1));
+            Assert.That(n[(int)Rarity.Magic], Is.EqualTo(2));
+            Assert.That(n[(int)Rarity.Rare], Is.EqualTo(0), "locked");
+            Assert.That(n[(int)Rarity.Legendary], Is.EqualTo(0));
+            Assert.That(w.SalvageAll(), Is.EqualTo(n.Sum()));
+        }
     }
 }

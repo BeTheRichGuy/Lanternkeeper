@@ -12,9 +12,13 @@ namespace Lanternkeeper.View
     /// hero where the shield would hang, gloves, rings, belt and boots below), a 10 × 4 bag under it and the purse at the
     /// foot, 자동 분해 and the hand buttons under it; the numbers live in the character window (C) on the left half, this
     /// window on the right half, as in Diablo II. Bag cells carry rarity, ★,
-    /// sockets, locks, ▲ upgrades and a "new" bar; hover shows the tooltip with a compare line and the worn piece beside it.
-    /// Click equips, Shift+click locks, right click salvages (twice for legendary, ★ or unique pieces). Tab toggles it,
+    /// sockets, locks, the compare arrow (▲▲ ▲ ▼ ◆) and a "new" bar; hover shows the tooltip with the answer line, each
+    /// stat's change and the worn piece beside it.
+    /// Click and right click equip (Diablo's habit), Shift+click locks, Ctrl+click salvages (twice for legendary, ★ or
+    /// unique pieces; Z takes it back for five seconds). Tab toggles it,
     /// F steps 자동 분해.
+    /// The head (UX plan A2, A6) says what the game does on its own here: the 자동 장착 switch with one sentence on why
+    /// the bag holds no ▲, 직전 교체 되돌리기 for its last swap, and "?" for the rarity legend.
     /// </summary>
     public sealed class GearPanel
     {
@@ -35,6 +39,10 @@ namespace Lanternkeeper.View
         static readonly string[] JunkNames = { "끔", "일반", "마법 이하", "희귀 이하" };
         readonly Text _salvageAllLabel;
         readonly Text _hint;
+        readonly Text _autoLabel, _autoNote, _undoLabel, _bagWarn;
+        RectTransform _legend;
+        /// <summary>When a one-off message in the hint line gives way to the hand controls again (0 = none up).</summary>
+        float _hintUntil;
         readonly ItemTooltip _tip, _compare;
         readonly HashSet<int> _seen = new HashSet<int>();
         public bool Visible { get; private set; }
@@ -135,7 +143,7 @@ namespace Lanternkeeper.View
         }
 
         const string RuneHint = "룬을 클릭해 집은 뒤 장비를 클릭하면 빈 소켓에 꽂힙니다 · 룬어 재료가 다 모이면 빈 장비에 저절로 꽂힙니다";
-        const string HandHint = "클릭: 장착 · Shift+클릭: 잠금 · 우클릭: 분해";
+        const string HandHint = "클릭 · 우클릭: 장착 · Shift+클릭: 잠금 · Ctrl+클릭: 분해";
 
         /// <summary>A rune picked from the hoard, waiting for a piece of gear to be clicked (Diablo: the rune on the cursor).</summary>
         Rune _held = Rune.None;
@@ -232,11 +240,22 @@ namespace Lanternkeeper.View
         {
             _ui = ui;
             _world = world;
-            _win = ui.Window("Gear Panel", W, H, "소지품", Toggle, out _title, "ui/ui2_window_iron");
+            _win = ui.Window("Gear Panel", W, H, "가방", Toggle, out _title, "ui/ui2_window_iron");
             _win.anchoredPosition = new Vector2(232f, UiKit.Lift(H)); // the right half; the character window takes the left
 
+            // ---------- the head (UX plan A2, A6): the auto-equip switch and what it does, its undo, the "?" legend ----------
+            var auto = ui.Button(_win, "", W - 156f, 5f, 100f, 18f, () => { _world.AutoEquip = !_world.AutoEquip; Changed(); });
+            _autoLabel = auto.GetComponentInChildren<Text>();
+            ui.Button(_win, "?", W - 52f, 5f, 20f, 18f, ToggleLegend);
+            _autoNote = UiKit.Label(_win, "", 18f, 27f, W - 36f, 30f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            var undo = ui.Button(_win, "직전 교체 되돌리기", W - 196f, 27f, UndoW, 15f, Undo); // beside the note's short first line
+            _undoLabel = undo.GetComponentInChildren<Text>();
+            var undoHover = undo.gameObject.AddComponent<UiPointer>();
+            undoHover.Enter = () => { if (_held == Rune.None) { _hint.text = UndoPreview(); _hintUntil = 0f; } };
+            undoHover.Exit = () => { if (_held == Rune.None && _hintUntil <= 0f) _hint.text = HandHint; };
+
             // ---------- the paper doll (Diablo II's places; no off-hand here, so the hero stands where a shield would) ----------
-            const float ox = 30f, oy = 40f, cw = 76f;
+            const float ox = 30f, oy = 58f, cw = 76f; // 18 px lower than before: the head's two lines sit above it
             _doll = UiKit.Rect(_win, "doll", 0f, 0f, W, H);
             var at = new Dictionary<EquipSpot, Rect>
             {
@@ -302,18 +321,23 @@ namespace Lanternkeeper.View
 
             // ---------- under the bag: count, 자동 분해, the hand buttons ----------
             _bagCount = UiKit.Label(_win, "", W - 170f, py, 152f, 14f, 12, TextAnchor.UpperRight, UiKit.Ink);
-            float jy = py + 24f;
+            // Audit #19: a full bag salvaged its weakest piece without a word. From 36 the count turns orange and this says so.
+            _bagWarn = UiKit.Label(_win, "", bx, py + 14f, W - 36f, 14f, 12, TextAnchor.UpperRight, Warn);
+            float jy = py + 29f; // the rows below close up to give the head and the warning their lines
             UiKit.Label(_win, "자동 분해", bx, jy + 3f, 80f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
             for (int i = 0; i < _junk.Length; i++)
             {
                 int level = i - 1;
                 _junk[i] = ui.Button(_win, JunkNames[i], bx + 76f + i * 76f, jy, 72f, 19f, () => { _world.AutoSalvage = level; Changed(); });
             }
-            UiKit.Label(_win, "<color=#8a8178>줍는 즉시 잿 파편으로 · 전설 이상 · ★ · 소켓 2칸 이상은 늘 지킴</color>", bx, jy + 22f, W - 36f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-            float hy = jy + 44f;
+            UiKit.Label(_win, "<color=#8a8178>줍는 즉시 잿 파편으로 · 전설 이상 · ★ · 소켓 2칸 이상은 지킴 (가방이 넘치면 예외)</color>", bx, jy + 20f, W - 36f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            float hy = jy + 36f;
             BuildRunePage(bx, oy, bw, bx, hy);
-            ui.Button(_win, "정렬", bx + 224f, hy, 72f, 19f, SortBag);
-            var salvage = ui.Button(_win, "일괄 분해", bx + 300f, hy, 84f, 19f, SalvageAll);
+            // The two actions stand at the bag's right edge, apart from the 가방 | 룬 보관함 tabs (loop 2 #17: one row of look-alikes);
+            // 일괄 분해 gets a red frame because it destroys. Only this button's four edge strips are recoloured, not UiKit.
+            ui.Button(_win, "정렬", bx + 238f, hy, 52f, 19f, SortBag);
+            var salvage = ui.Button(_win, "일괄 분해", bx + 294f, hy, 84f, 19f, SalvageAll);
+            foreach (var edge in salvage.GetComponentsInChildren<Image>()) if (edge.gameObject.name == "edge") edge.color = new Color(0.9f, 0.32f, 0.28f, 0.95f);
             _salvageAllLabel = salvage.GetComponentInChildren<Text>();
             _hint = UiKit.Label(_win, HandHint, bx, H - 22f, W - 36f, 14f, 12, TextAnchor.UpperCenter, new Color(0.62f, 0.58f, 0.52f));
 
@@ -332,6 +356,15 @@ namespace Lanternkeeper.View
             }
         }
 
+        static bool Ctrl
+        {
+            get
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                return kb != null && kb.ctrlKey.isPressed;
+            }
+        }
+
         public void Toggle() => SetVisible(!Visible);
 
         void SetVisible(bool v)
@@ -342,6 +375,8 @@ namespace Lanternkeeper.View
             if (!v)
             {
                 if (_held != Rune.None) Release();
+                if (_legend != null) _legend.gameObject.SetActive(false);
+                if (_confirm != null) _confirm.gameObject.SetActive(false);
                 _tip.Hide();
                 _compare.Hide();
                 _hovered = null;
@@ -351,6 +386,9 @@ namespace Lanternkeeper.View
             else _win.SetAsLastSibling();
             _stamp = -1;
         }
+
+        /// <summary>The name of an 자동 분해 step (−1 off … <see cref="SimWorld.AutoSalvageMax"/>).</summary>
+        public static string SalvageName(int step) => JunkNames[Mathf.Clamp(step + 1, 0, JunkNames.Length - 1)];
 
         /// <summary>F: the next 자동 분해 step (끔 → 일반 → 마법 이하 → 희귀 이하 → 끔).</summary>
         public void CycleFilter()
@@ -378,6 +416,7 @@ namespace Lanternkeeper.View
             _hero.sprite = _ui.Catalog.GetAnim("hero/" + _world.Hero.ClassId, "idle", 0, t, true, 1f, out _);
             foreach (var c in _cells) if (c.Root.gameObject.activeSelf) c.Tick(t);
             if (_salvageAllArmedAt > 0f && t - _salvageAllArmedAt > 3f) { _salvageAllArmedAt = -10f; _salvageAllLabel.text = "일괄 분해"; }
+            if (_hintUntil > 0f && t > _hintUntil) { _hintUntil = 0f; if (_held == Rune.None) _hint.text = HandHint; }
             int stamp = Stamp();
             if (stamp == _stamp) return;
             _stamp = stamp;
@@ -402,6 +441,8 @@ namespace Lanternkeeper.View
                 s = s * 31 + h.IntegratedLevel;
                 s = s * 31 + h.WickLevel;
                 s = s * 31 + _world.AutoSalvage;
+                s = s * 31 + (_world.AutoEquip ? 1 : 0);
+                s = s * 31 + (_world.CanUndoAutoEquip ? 1 : 0);
                 s = s * 31 + _world.Bag.AshShards;
                 s = s * 31 + (_runeTab ? 1 : 0);
                 foreach (int n in _world.Bag.RuneCounts) s = s * 31 + n;
@@ -413,13 +454,22 @@ namespace Lanternkeeper.View
         void Rebuild()
         {
             var h = _world.Hero;
-            _title.text = "소지품 · " + SkillBook.ClassName(h.ClassId) + "  Lv " + h.Level
+            _title.text = "가방 · " + SkillBook.ClassName(h.ClassId) + "  Lv " + h.Level
                 + (h.EmberLevel > 0 ? " <color=#9a948c>+" + h.EmberLevel + "</color>" : "");
+            bool auto = _world.AutoEquip;
+            _autoLabel.text = "자동 장착 [" + (auto ? "<color=#ffd480>켬</color>" : "끔") + "]";
+            _autoLabel.color = auto ? UiKit.Ink : UiKit.Dim;
+            _autoNote.text = auto ? AutoOnNote : AutoOffNote;
+            _undoLabel.color = _world.CanUndoAutoEquip ? UiKit.Ink : UiKit.Dim;
+            _undoLabel.text = _world.CanUndoAutoEquip ? UndoButtonText() : "직전 교체 되돌리기";
 
             foreach (var spot in DollOrder) _spots[(int)spot].Show(h.Gear.Spots[(int)spot], EmptyIcon(spot));
 
             var bag = _world.Bag.Items;
+            bool nearFull = bag.Count >= NearFull;
             _bagCount.text = "가방  " + bag.Count + " / " + Bag.Capacity;
+            _bagCount.color = nearFull ? Warn : UiKit.Ink;
+            _bagWarn.text = nearFull ? "가득 차면 가장 약한 것부터 분해 · 잠근 것은 제외" : "";
             for (int i = 0; i < _cells.Count; i++)
             {
                 var cell = _cells[i];
@@ -432,13 +482,23 @@ namespace Lanternkeeper.View
                     continue;
                 }
                 var it = bag[i];
-                bool usable = it.ReqLevel <= h.IntegratedLevel;
-                bool up = usable && HeroStats.Upgrade(h, it, _world.SpotFor(it), out _) > 1.001f;
-                cell.Show(it, null, up, !_seen.Contains(it.Uid), usable);
+                // The same compare the tooltip and auto-equip use (UX plan §3.0 다): a cell's arrow never disagrees with them.
+                var arrow = HeroStats.Compare(h, it).Arrow;
+                cell.Show(it, null, arrow, !_seen.Contains(it.Uid), usable: arrow != GearArrow.Locked, showSame: true);
             }
 
+            // The chosen step gets a bright body and a ✓, not only brighter text (UX plan A7 ⑥).
             for (int i = 0; i < _junk.Length; i++)
-                _junk[i].GetComponentInChildren<Text>().color = _world.AutoSalvage == i - 1 ? UiKit.Gold : UiKit.Dim;
+            {
+                bool on = _world.AutoSalvage == i - 1;
+                var label = _junk[i].GetComponentInChildren<Text>();
+                label.text = on ? "✓ " + JunkNames[i] : JunkNames[i];
+                label.color = on ? Color.white : UiKit.Dim;
+                var cb = _junk[i].colors;
+                cb.normalColor = cb.selectedColor = on ? new Color(0.42f, 0.31f, 0.12f, 1f) : new Color(0.09f, 0.08f, 0.075f, 0.95f);
+                cb.highlightedColor = on ? new Color(0.52f, 0.39f, 0.16f, 1f) : new Color(0.2f, 0.16f, 0.11f, 0.98f);
+                _junk[i].colors = cb;
+            }
             _ash.text = _world.Bag.AshShards.ToString("N0") + "  <color=#8a8178>잿 파편</color>";
             if (_runeTab) RebuildRunes();
             _bagTabText.color = _runeTab ? UiKit.Dim : UiKit.Gold;
@@ -452,7 +512,7 @@ namespace Lanternkeeper.View
             cell.Pointer.Enter += () => Hover(cell, worn: false);
             cell.Pointer.Exit += () => Unhover(cell);
             cell.Pointer.LeftClick += () => ClickBag(cell);
-            cell.Pointer.RightClick += () => SalvageOne(cell);
+            cell.Pointer.RightClick += () => RightClickBag(cell);
             _cells.Add(cell);
         }
 
@@ -463,15 +523,60 @@ namespace Lanternkeeper.View
             var it = cell.Item;
             if (it == null) return;
             if (_held != Rune.None) { SocketHeld(cell); return; }
+            if (Ctrl) { SalvageOne(cell); return; }
             if (Shift) _world.ToggleLock(it.Uid);
-            else if (!_world.EquipFromBag(it.Uid)) { Hover(cell, false, "<color=#ff6b61>요구 레벨 " + it.ReqLevel + "에 미달합니다</color>"); return; }
+            else if (!EquipCell(cell)) return;
             _seen.Add(it.Uid);
             Changed();
         }
 
+        bool EquipCell(SlotView cell)
+        {
+            var it = cell.Item;
+            if (_world.EquipFromBag(it.Uid)) return true;
+            Hover(cell, false, "<color=#ff6b61>요구 레벨 " + it.ReqLevel + "에 미달합니다</color>");
+            return false;
+        }
+
+        /// <summary>Right click equips like a click (UX plan A7; it used to salvage with no way back); with a rune held it puts the rune back.</summary>
+        void RightClickBag(SlotView cell)
+        {
+            if (_held != Rune.None) { Release(); return; }
+            var it = cell.Item;
+            if (it == null || !EquipCell(cell)) return;
+            _seen.Add(it.Uid);
+            Changed();
+        }
+
+        /// <summary>Raised after a hand salvage so the game can post the 5 s notice (Z takes it back).</summary>
+        public Action<Item> OnSalvaged;
+        /// <summary>A plain line for the player (undo refusals), shown as a notice.</summary>
+        public Action<string> OnNotice;
+        float _salvagedAt = -10f;
+
+        /// <summary>
+        /// Z within five seconds of a hand salvage puts the piece back. True when the key was used (also on a refusal,
+        /// which says why), so the minimap toggle that shares Z stays put.
+        /// </summary>
+        public bool TryUndoSalvage()
+        {
+            if (_world.LastSalvaged == null || Time.unscaledTime - _salvagedAt > 5f) return false;
+            var it = _world.LastSalvaged;
+            if (!_world.UndoSalvage())
+            {
+                OnNotice?.Invoke(_world.Bag.Items.Count >= Bag.Capacity ? "되돌릴 수 없습니다 · 가방이 가득 찼습니다" : "되돌릴 수 없습니다 · 잿 파편을 이미 썼습니다");
+                _salvagedAt = -10f;
+                return true;
+            }
+            _salvagedAt = -10f;
+            _seen.Add(it.Uid); // it comes back as seen, not as a new find
+            OnNotice?.Invoke("되돌렸습니다 · " + it.Name);
+            Changed();
+            return true;
+        }
+
         void SalvageOne(SlotView cell)
         {
-            if (_held != Rune.None) { Release(); return; } // right click puts the rune back
             var it = cell.Item;
             if (it == null) return;
             if (it.Locked) { Hover(cell, false, "<color=#ffd38a>잠긴 장비는 분해되지 않습니다</color>"); return; }
@@ -480,35 +585,102 @@ namespace Lanternkeeper.View
             {
                 _salvageArmedUid = it.Uid;
                 _salvageArmedAt = Time.unscaledTime;
-                Hover(cell, false, "<color=#ffb070>한 번 더 우클릭하면 분해됩니다</color>");
+                Hover(cell, false, "<color=#ffb070>한 번 더 Ctrl+클릭하면 분해됩니다</color>");
                 return;
             }
             _salvageArmedUid = -1;
-            if (_world.SalvageFromBag(it.Uid)) { _tip.Hide(); _compare.Hide(); Changed(); }
+            if (_world.SalvageFromBag(it.Uid))
+            {
+                _tip.Hide();
+                _compare.Hide();
+                _salvagedAt = Time.unscaledTime;
+                OnSalvaged?.Invoke(it);
+                Changed();
+            }
         }
 
+        /// <summary>The 일괄 분해 button: asks first (UX plan A7 ④); the box's own 분해 button is the second click.</summary>
         void SalvageAll()
         {
+            var counts = _world.BulkSalvageCounts();
             int n = 0;
-            foreach (var it in _world.Bag.Items) if (!it.Locked && it.Rarity < Rarity.Legendary && it.GreaterCount == 0) n++;
+            foreach (int c in counts) n += c;
             if (n == 0) { _salvageAllLabel.text = "분해할 장비 없음"; _salvageAllArmedAt = Time.unscaledTime; return; }
-            if (Time.unscaledTime - _salvageAllArmedAt > 3f)
+            if (_confirm == null) BuildConfirm();
+            var sb = new StringBuilder("<color=#ffd38a>일괄 분해 · " + n + "개</color>\n");
+            int lines = 1;
+            for (int r = 0; r < counts.Length; r++)
             {
-                _salvageAllArmedAt = Time.unscaledTime;
-                _salvageAllLabel.text = "한 번 더: " + n + "개 분해 (전설·★·잠금 제외)";
-                return;
+                if (counts[r] == 0) continue;
+                sb.Append("<color=").Append(ItemStyle.Hex((Rarity)r)).Append('>').Append(ItemStyle.RarityName((Rarity)r)).Append("</color>  ").Append(counts[r]).Append("개\n");
+                lines++;
             }
-            _world.SalvageAll();
-            _salvageAllArmedAt = -10f;
-            _salvageAllLabel.text = "일괄 분해";
-            Changed();
+            sb.Append("<color=#8a8178>잠근 것 · ★ 있는 것 · 전설 이상은 남깁니다</color>");
+            lines++;
+            // Legendary or better is never in the set today; if the rule ever lets one in, the box says so in red.
+            if (counts[(int)Rarity.Legendary] + counts[(int)Rarity.Unique] > 0)
+            {
+                sb.Append("\n<color=#FF5A4D>전설 이상이 섞여 있습니다. 되돌릴 수 없습니다</color>");
+                lines++;
+            }
+            _confirmText.text = sb.ToString();
+            float textH = lines * 15f;
+            float boxH = 12f + textH + 8f + 20f + 12f;
+            _confirm.sizeDelta = new Vector2(ConfirmW, boxH);
+            _confirmEdges[0].rectTransform.anchoredPosition = new Vector2(0f, -(boxH - 1f));
+            _confirmEdges[1].rectTransform.sizeDelta = _confirmEdges[2].rectTransform.sizeDelta = new Vector2(1f, boxH);
+            _confirmText.rectTransform.sizeDelta = new Vector2(ConfirmW - 24f, textH);
+            foreach (var b in _confirmButtons) b.anchoredPosition = new Vector2(b.anchoredPosition.x, -(12f + textH + 8f));
+            _confirm.gameObject.SetActive(true);
+            _confirm.SetAsLastSibling();
+            _tip.Hide();
+            _compare.Hide();
+        }
+
+        const float ConfirmW = 290f;
+        RectTransform _confirm;
+        Text _confirmText;
+        readonly List<RectTransform> _confirmButtons = new List<RectTransform>();
+        readonly Image[] _confirmEdges = new Image[3]; // bottom, left, right
+
+        void BuildConfirm()
+        {
+            _confirm = UiKit.Rect(_win, "salvage confirm", 65f, 330f, ConfirmW, 120f);
+            var back = _confirm.gameObject.AddComponent<Image>();
+            back.color = new Color(0.035f, 0.032f, 0.045f, 1f); // opaque, and it takes the clicks meant for the bag under it
+            var edge = new Color(1f, 0.83f, 0.5f, 0.45f);
+            // bottom, left, right edges are resized to the text each time the box opens
+            UiKit.Fill(_confirm, "edge", 0f, 0f, ConfirmW, 1f, edge);
+            for (int i = 0; i < 3; i++) _confirmEdges[i] = UiKit.Fill(_confirm, "edge", i == 2 ? ConfirmW - 1f : 0f, 0f, i == 0 ? ConfirmW : 1f, 1f, edge);
+            _confirmText = UiKit.Label(_confirm, "", 12f, 12f, ConfirmW - 24f, 60f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _confirmText.lineSpacing = 1.15f;
+            var yes = _ui.Button(_confirm, "분해", 12f, 0f, 128f, 20f, () =>
+            {
+                _world.SalvageAll();
+                _confirm.gameObject.SetActive(false);
+                Changed();
+            });
+            var no = _ui.Button(_confirm, "취소", ConfirmW - 140f, 0f, 128f, 20f, () => _confirm.gameObject.SetActive(false));
+            _confirmButtons.Add((RectTransform)yes.transform);
+            _confirmButtons.Add((RectTransform)no.transform);
+            _confirm.gameObject.SetActive(false);
         }
 
         void SortBag()
         {
+            // ▲▲ ▲ first, then ⇄, then the rest (UX plan A8); the same compare the cell arrows use. Ranked once per item.
+            var h = _world.Hero;
+            var rank = new Dictionary<int, int>();
+            foreach (var it in _world.Bag.Items)
+            {
+                var arrow = HeroStats.Compare(h, it).Arrow;
+                rank[it.Uid] = arrow == GearArrow.BigUp ? 0 : arrow == GearArrow.Up ? 1 : arrow == GearArrow.Trade ? 2 : 3;
+            }
             _world.Bag.Items.Sort((a, b) =>
             {
-                int c = b.Rarity.CompareTo(a.Rarity);
+                int c = rank[a.Uid].CompareTo(rank[b.Uid]);
+                if (c != 0) return c;
+                c = b.Rarity.CompareTo(a.Rarity);
                 if (c != 0) return c;
                 c = b.GreaterCount.CompareTo(a.GreaterCount);
                 if (c != 0) return c;
@@ -531,32 +703,25 @@ namespace Lanternkeeper.View
             var foot = new StringBuilder();
             if (worn)
             {
-                foot.Append("장착 중");
-                if (it.Locked) foot.Append(" · 잠김");
-                _tip.Show(it, note ?? foot.ToString(), it.Locked ? "잠김" : null);
-                _tip.PlaceBeside(cell.Root);
+                // The band says "착용 중" and the corner says 잠김: no foot line left to repeat them.
+                _tip.Show(it, note ?? "", it.Locked ? "잠김" : null, band: "착용 중");
+                _tip.PlaceLeftOf(_win);
                 _compare.Hide();
                 return;
             }
-            Item wornThere = null;
-            if (it.ReqLevel > h.IntegratedLevel)
-                foot.Append("<color=#ff6b61>요구 레벨 ").Append(it.ReqLevel).Append(" (현재 ").Append(h.IntegratedLevel).Append(")</color>");
-            else
-            {
-                var spot = _world.SpotFor(it);
-                wornThere = h.Gear.Spots[(int)spot];
-                float score = HeroStats.Upgrade(h, it, spot, out float dps);
-                // One line, compare first: "is this better?" before the details (재기획 §5.5). The hand controls live
-                // once at the foot of the window, not in every tooltip.
-                foot.Append("초당 피해 ").Append(Delta(dps)).Append("   종합 ").Append(Delta(score - 1f));
-            }
-            if (note != null) foot.Insert(0, note + "\n");
-            _tip.Show(it, foot.ToString(), it.Locked ? "잠김" : null);
-            _tip.PlaceBeside(cell.Root, preferLeft: true);
+            // "Is this better?" is the tooltip's own answer line now, under the name (UX plan A4); the foot keeps only
+            // what the hand just did. The hand controls live once at the foot of the window, not in every tooltip.
+            var cmp = HeroStats.Compare(h, it);
+            var wornThere = h.Gear.Spots[(int)cmp.Spot];
+            if (cmp.Arrow == GearArrow.Locked) foot.Append("<color=#8a8178>지금 통합 레벨 ").Append(h.IntegratedLevel).Append("</color>");
+            if (note != null) foot.Insert(0, foot.Length > 0 ? note + "\n" : note);
+            _tip.Show(it, foot.ToString(), it.Locked ? "잠김" : null, cmp, wornThere, band: "가방");
+            // Fixed left of the window (UX loop 2 P0-1): beside the cell they covered the bag, the orb and the skill bar.
+            _tip.PlaceLeftOf(_win);
             if (wornThere != null)
             {
-                _compare.Show(wornThere, "<color=#8a8178>현재 장착 중</color>");
-                _compare.PlaceNextTo(_tip);
+                _compare.Show(wornThere, "", band: "착용 중"); // the band at the top says which one is worn (loop 2 #8)
+                _compare.PlaceLeftOrBelow(_tip);
             }
             else _compare.Hide();
         }
@@ -569,11 +734,109 @@ namespace Lanternkeeper.View
             _compare.Hide();
         }
 
-        static string Delta(float frac)
+        // ---------- the head: auto-equip, its undo, the legend (UX plan A2, A6) ----------
+
+        /// <summary>The bag count turns orange from here (four places left).</summary>
+        const int NearFull = Bag.Capacity - 4;
+        static readonly Color Warn = new Color(1f, 0.69f, 0.44f);
+        const string AutoOnNote = "더 좋은 장비(<color=#5BD66B>▲</color>)는 알아서 낍니다.\n가방에 남은 건 <color=#FF5A4D>▼</color> 약함 · <color=#FFFFFF>═</color> 비슷함 · <color=#FFD24D>⇄</color> 교환입니다.";
+        const string AutoOffNote = "자동 장착이 꺼져 있습니다.\n<color=#5BD66B>▲</color>가 붙은 장비를 클릭해 직접 끼세요.";
+
+        /// <summary>A one-off line where the hand controls stand; they come back after a few seconds.</summary>
+        void Say(string text)
         {
-            float pct = frac * 100f;
-            if (Mathf.Abs(pct) < 0.05f) return "<color=#8a8178>±0%</color>";
-            return pct > 0f ? "<color=#73f280>▲ +" + pct.ToString("0.#") + "%</color>" : "<color=#ff6b61>▼ " + pct.ToString("0.#") + "%</color>";
+            _hint.text = text;
+            _hintUntil = Time.unscaledTime + 4f;
+        }
+
+        void Undo()
+        {
+            var s = _world.LastAutoSwap;
+            if (!_world.UndoAutoEquip()) { Say("되돌릴 자동 교체가 없습니다"); return; }
+            Say("되돌렸습니다 · <color=" + ItemStyle.Hex(s.New.Rarity) + ">" + s.New.Name + "</color> — 이제 자동으로 끼지 않습니다");
+            Changed();
+        }
+
+        const float UndoW = 178f;
+
+        /// <summary>"되돌리기: 새 → 옛" on the button itself, the two names cut with … until the line fits (loop 2 #17).</summary>
+        string UndoButtonText()
+        {
+            var s = _world.LastAutoSwap;
+            if (s == null) return "직전 교체 되돌리기";
+            string now = s.New.Name, was = s.Old != null ? s.Old.Name : "빈 칸";
+            string text = "되돌리기: " + now + " → " + was;
+            for (int n = Mathf.Max(now.Length, was.Length); n >= 2; n--)
+            {
+                text = "되돌리기: " + Cut(now, n) + " → " + Cut(was, n);
+                _undoLabel.text = text; // preferredWidth reads the label's own text
+                if (_undoLabel.preferredWidth <= UndoW - 10f) break;
+            }
+            return text;
+        }
+
+        static string Cut(string s, int n) => s.Length <= n ? s : s.Substring(0, n - 1) + "…";
+
+        /// <summary>What the undo button would do, shown in the hint line while the pointer is on it.</summary>
+        string UndoPreview()
+        {
+            var s = _world.LastAutoSwap;
+            if (s == null || !_world.CanUndoAutoEquip) return "되돌릴 자동 교체가 없습니다";
+            string line = "되돌리기: " + s.New.Name + " → " + (s.Old != null ? s.Old.Name + " 다시 착용" : "빈 칸");
+            // The old piece went to ash on the spot (자동 분해): undo buys it back for what it gave.
+            if (s.Old != null && !_world.Bag.Items.Contains(s.Old)) line += " · 잿 파편 " + s.AshPaid + " 반환";
+            return line;
+        }
+
+        void ToggleLegend()
+        {
+            if (_legend == null) BuildLegend();
+            else _legend.gameObject.SetActive(!_legend.gameObject.activeSelf);
+            if (_legend.gameObject.activeSelf) { _legend.SetAsLastSibling(); _tip.Hide(); _compare.Hide(); _hovered = null; }
+        }
+
+        /// <summary>
+        /// The rarity legend (UX plan A2, audit #3: five colours and no word on their order). Highest on top: a swatch,
+        /// the ◆ count, the name and what the rarity carries (GameText), then the sentence that sends the reader to the
+        /// arrows and what each arrow means. Laid over the doll, built on first use; a click on it closes it.
+        /// </summary>
+        void BuildLegend()
+        {
+            const float lw = W - 20f, pad = 10f;
+            _legend = UiKit.Rect(_win, "legend", 10f, 28f, lw, 100f);
+            var back = _legend.gameObject.AddComponent<Image>();
+            back.color = new Color(0.035f, 0.032f, 0.045f, 1f); // opaque, and it takes the clicks meant for the doll under it
+            _legend.gameObject.AddComponent<UiPointer>().LeftClick = ToggleLegend;
+            UiKit.Label(_legend, "장비 등급", pad, 8f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold, title: true);
+            UiKit.Label(_legend, "클릭: 닫기", lw - 110f, 8f, 100f, 14f, 12, TextAnchor.UpperRight, UiKit.Dim);
+            float y = 28f;
+            for (int r = (int)Rarity.Unique; r >= (int)Rarity.Common; r--)
+            {
+                var rarity = (Rarity)r;
+                UiKit.Fill(_legend, "swatch", pad, y + 2f, 10f, 10f, ItemStyle.Color(rarity));
+                UiKit.Label(_legend, ItemStyle.Tag(rarity), pad + 16f, y, 100f, 14f);
+                // GameText opens each line with the rarity's name and a dash; the tag beside it already says the name.
+                string text = GameText.Rarity(rarity);
+                int cut = text.IndexOf(" — ", StringComparison.Ordinal);
+                var what = UiKit.Label(_legend, cut >= 0 ? text.Substring(cut + 3) : text, pad + 118f, y, lw - pad * 2f - 118f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+                y += Mathf.Max(14f, Mathf.Ceil(what.preferredHeight)) + 5f;
+            }
+            UiKit.Fill(_legend, "rule", pad, y, lw - pad * 2f, 1f, UiKit.Line);
+            y += 6f;
+            var foot = UiKit.Label(_legend,
+                "위로 갈수록 드물고 옵션이 많습니다. 내게 더 좋은지는 <color=#5BD66B>▲</color><color=#FF5A4D>▼</color>가 알려 줍니다.\n"
+                + "<color=#5BD66B>▲▲</color> 전투력 +10% 이상 · <color=#5BD66B>▲</color> +1% 이상 · <color=#FFFFFF>═</color> 비슷함 · <color=#FF5A4D>▼</color> 지금 장비보다 약함\n"
+                + "<color=#FFD24D>⇄</color> 교환: 공격과 생존 중 하나는 늘고 하나는 줍니다. 자동으로 끼지 않으니 직접 고르세요.\n"
+                + "<color=#8A8178>지금 장비·레벨 기준 예상치입니다. 스킬 구성과 트리 효과는 넣지 않았습니다.</color>",
+                pad, y, lw - pad * 2f, 14f);
+            foot.lineSpacing = 1.15f;
+            y += Mathf.Ceil(foot.preferredHeight) + 8f;
+            _legend.sizeDelta = new Vector2(lw, y);
+            var edge = new Color(1f, 0.83f, 0.5f, 0.45f);
+            UiKit.Fill(_legend, "edge", 0f, 0f, lw, 1f, edge);
+            UiKit.Fill(_legend, "edge", 0f, y - 1f, lw, 1f, edge);
+            UiKit.Fill(_legend, "edge", 0f, 0f, 1f, y, edge);
+            UiKit.Fill(_legend, "edge", lw - 1f, 0f, 1f, y, edge);
         }
 
         static string EmptyIcon(EquipSpot s)

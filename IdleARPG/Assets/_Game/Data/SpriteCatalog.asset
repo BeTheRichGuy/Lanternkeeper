@@ -26097,6 +26097,13 @@ MonoBehaviour:
     fps: 10
     mirrorMask: 0
     loop: 0
+  - key: portrait/oath_knight_E_unveiled
+    sprites:
+    - {fileID: 21300000, guid: f46d523eaca73ae4c87b77975981dd01, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
   - key: portrait/star_seer_A_astrologer
     sprites:
     - {fileID: 21300000, guid: d4a1677c093e4ac4c88bf3ebb61374c2, type: 3}

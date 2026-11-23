@@ -42,6 +42,8 @@ namespace Lanternkeeper.Sim
         /// <summary>True once a save has written <see cref="CustomRules"/> (an empty list then means "no rules").</summary>
         public bool CustomRulesSet;
         public bool AutoEquip = true;
+        /// <summary>Uids of bag pieces whose auto-equip the player undid (UX plan A6); old saves: none.</summary>
+        public List<int> AutoEquipDeclined = new List<int>();
 
         public List<EquippedEntry> Equipped = new List<EquippedEntry>();
         public List<Item> Bag = new List<Item>();

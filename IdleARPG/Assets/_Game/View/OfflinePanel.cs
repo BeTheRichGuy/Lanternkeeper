@@ -24,7 +24,7 @@ namespace Lanternkeeper.View
         OfflineReport _r;
         float _shownFor, _skipAt = -1f;
         int _opened, _talliesKey = -1;
-        bool _closing;
+        bool _closing, _clicked; // _clicked: a click off the cards (희승 11-23: 클릭해도 꺼지게)
         public bool Visible { get; private set; }
 
         // ---------- 결정 카드 (재기획 §7.3): choices that came up while away, the recommended one ready on a button ----------
@@ -44,9 +44,15 @@ namespace Lanternkeeper.View
             _veil.anchorMin = Vector2.zero; _veil.anchorMax = Vector2.one;
             _veil.offsetMin = _veil.offsetMax = Vector2.zero;
             _veil.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.45f);
+            _veil.gameObject.AddComponent<UiPointer>().LeftClick += () => _clicked = true;
             _win = ui.Window("Offline Panel", W, H, "등불이 혼자 타오르는 동안", null, out _, "ui/ui2_window_iron");
             var x0 = _win.Find("button ×");
             if (x0 != null) x0.gameObject.SetActive(false); // any key or click closes it; no corner X
+            // The window's own face takes clicks too: with cards up the mouse was kept for them and nothing else closed it.
+            var face = UiKit.Fill(_win, "click to close", 0f, 0f, W, H, new Color(0f, 0f, 0f, 0f));
+            face.raycastTarget = true;
+            face.transform.SetSiblingIndex(1); // over the frame, under everything drawn after it
+            face.gameObject.AddComponent<UiPointer>().LeftClick += () => _clicked = true;
             _away = UiKit.Label(_win, "", 20f, 32f, W - 40f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             var pool = UiKit.Fill(_win, "light", W / 2f - 220f, 40f, 440f, 140f, new Color(1f, 0.72f, 0.4f, 0.18f));
             pool.sprite = UiKit.Glow(ui, 64);
@@ -99,6 +105,7 @@ namespace Lanternkeeper.View
             _closing = false;
             _foot.text = "클릭하거나 아무 키나 누르기 · 한 번에 개방";
             Visible = true;
+            _clicked = false;
             _veil.gameObject.SetActive(true);
             _veil.SetAsLastSibling();
             _win.gameObject.SetActive(true);
@@ -177,6 +184,8 @@ namespace Lanternkeeper.View
             if (!Visible) return;
             _shownFor += Mathf.Min(dt, 0.1f);
             float end = Mathf.Max(0.4f + _best.Count * Reveal, Roll + 0.2f);
+            anyInput |= _clicked;
+            _clicked = false;
             if (anyInput && _shownFor > 0.3f)
             {
                 // The first press opens everything; a later one (after a beat) closes.
@@ -214,7 +223,7 @@ namespace Lanternkeeper.View
             if (!_closing && _shownFor >= end)
             {
                 _closing = true;
-                _foot.text = _cardBits.Count > 0 ? "카드를 넘기지 않아도 불이익이 없습니다 · 아무 키나 누르면 닫힙니다" : "아무 키나 누르면 닫힙니다";
+                _foot.text = _cardBits.Count > 0 ? "카드를 넘기지 않아도 불이익이 없습니다 · 카드 밖을 클릭하거나 아무 키나 누르면 닫힙니다" : "클릭하거나 아무 키나 누르면 닫힙니다";
                 _cards.gameObject.SetActive(_cardBits.Count > 0);
             }
         }

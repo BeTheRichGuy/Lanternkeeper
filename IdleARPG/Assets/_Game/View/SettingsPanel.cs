@@ -29,10 +29,10 @@ namespace Lanternkeeper.View
             (null, "피해 숫자", null, false),
             (null, "분신 이펙트", "직접 시전은 유지", false),
             ("소리", "배경음", null, true),
-            (null, "소리", null, true),
+            (null, "효과음", "끄면 배경음도 함께 꺼짐", true),
             ("창 · 자동 진행", "전체 화면", null, true),
             (null, "자동 점화", "정예·보스·대규모 무리, 20초", true),
-            (null, "좌측 상단 알림", "꺼도 일지(G)에 기록됨", true),
+            (null, "화면 위 알림", "꺼도 알림 기록(G)에 남음", true),
             ("고어", "피 표현", "쓰러질 때 피·바닥 핏자국", true),
         };
 
@@ -53,7 +53,7 @@ namespace Lanternkeeper.View
                 }
                 // The whole row is the button (hover lights it).
                 var row = ui.Button(_win, "", 16f, y, W - 32f, RowH - 2f, () => OnPick?.Invoke(index));
-                UiKit.Label(row.transform, "<color=#8a8178>" + (i + 1) + "</color>  " + r.label + (r.note != null ? "  <color=#6f6860>" + r.note + "</color>" : ""),
+                UiKit.Label(row.transform, (i < 9 ? "<color=#8a8178>" + (i + 1) + "</color>  " : "     ") + r.label /* rows 10 and 11 have no number key */ + (r.note != null ? "  <color=#6f6860>" + r.note + "</color>" : ""),
                     8f, 5f, W - 140f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
                 if (r.toggle)
                 {
@@ -67,7 +67,8 @@ namespace Lanternkeeper.View
                 y += RowH;
             }
             ui.Button(_win, "캐릭터 선택", W / 2f - 80f, H - 50f, 160f, 22f, () => OnCharacters?.Invoke());
-            UiKit.Label(_win, "클릭 또는 숫자 키로 변경 · Esc로 닫기", 16f, H - 22f, W - 32f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+            UiKit.Label(_win, "클릭 또는 숫자 키 1~9로 변경", 16f, H - 22f, W - 150f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            UiKit.Label(_win, "(Esc) 닫기", W - 112f, H - 22f, 96f, 14f, 12, TextAnchor.UpperRight, UiKit.Dim);
             Show(false);
         }
 

@@ -35,6 +35,9 @@ namespace Lanternkeeper.View
         CodexPanel _codex;
         RingPanel _ringPanel;
         ClassSelectPanel _classSelect;
+        FirstTips _tips;
+        EventPrompt _eventPrompt;
+        bool _hudHiddenForClass;
         bool _firstRun;
         OfflinePanel _offline;
         AugmentPanel _augment;
@@ -116,6 +119,8 @@ namespace Lanternkeeper.View
             _codex = new CodexPanel(_ui, World);
             _ringPanel = new RingPanel(_ui, World);
             _gear.OnChanged = () => _saveSoon = true;
+            _gear.OnSalvaged = _toasts.Salvaged;
+            _gear.OnNotice = _toasts.Tip;
             _ringPanel.OnChanged = () => _saveSoon = true;
             // 재기획 §5.8: the screen HUD (lantern vial, skill bar, icon menu) replaces the world-space corner and menu.
             _hudBar = new HudBar(_ui, World) { OpenMenu = OpenFromMenu };
@@ -134,6 +139,8 @@ namespace Lanternkeeper.View
             _augment = new AugmentPanel(_ui, id => _audio.Sfx(id)) { OnChanged = () => _saveSoon = true };
             _hunt = new HuntPanel(_ui);
             _banner = new LootBanner(_ui);
+            _tips = new FirstTips(_ui); // UX plan D4: first-time lines
+            _eventPrompt = new EventPrompt(_ui); // UX plan D7: the event's choices as a box over the windows
             if (report != null && !report.Empty)
             {
                 _offline.Show(report, World);
@@ -228,7 +235,7 @@ namespace Lanternkeeper.View
         }
 
         static string Summary(int level, int floorIndex) =>
-            "Lv " + level + " · " + (floorIndex / SimWorld.ActLength + 1) + "막 " + (floorIndex % SimWorld.ActLength + 1) + "층";
+            "Lv " + level + " · 막 " + EnemyRoster.ForAct(floorIndex / SimWorld.ActLength).Numeral + " " + (floorIndex % SimWorld.ActLength + 1) + "/" + SimWorld.ActLength + "층"; // as the HUD says it, short enough for one card line (loop 4)
 
         void ChooseClass(string classId)
         {
@@ -245,18 +252,9 @@ namespace Lanternkeeper.View
             UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
         }
 
-        /// <summary>K: save this character, make the next class active and reload the scene with it.</summary>
-        void SwitchCharacter()
-        {
-            if (!useSaves || _saves == null) return;
-            Save(rotateNow: false);
-            var classes = SkillBook.PlayableClasses;
-            var next = classes[(Array.IndexOf(classes, World.Hero.ClassId) + 1) % classes.Length];
-            try { System.IO.File.WriteAllText(ActiveFile, next); }
-            catch (Exception e) { Debug.LogWarning("[Lanternkeeper] could not switch character: " + e.Message); return; }
-            _switchedClass = true;
-            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-        }
+        /// <summary>원정 명령 (지도 제작자, O) in words.</summary>
+        static string OrderName(ExpeditionOrder o) =>
+            o == ExpeditionOrder.BossRush ? "보스 직행" : o == ExpeditionOrder.TreasureHunt ? "보물 찾기" : o == ExpeditionOrder.XpFirst ? "경험치 우선" : "모두 처치";
 
         void ToggleFullscreen()
         {
@@ -283,7 +281,6 @@ namespace Lanternkeeper.View
         PixelPerfectCamera _ppc;
         float _zoom = 2f, _zoomMul = 1f;
         WorldPresenter _presenter;
-        float _switchAskedAt = -10f;
         Vector2Int _zoomScreen;
 
         /// <summary>
@@ -532,6 +529,7 @@ namespace Lanternkeeper.View
                 _minimap.OnTick();
                 _toasts.OnTick(World.Events, World);
                 _banner.OnTick(World.Events);
+                _tips.OnTick(World);
                 _hunt.OnTick(World.Events);
                 _audio.SetAct(Mathf.Min(World.ActLoop, EnemyRoster.Acts.Length - 1));
                 bool died = false, retreat = false;
@@ -555,6 +553,9 @@ namespace Lanternkeeper.View
                         _saveSoon = true;
                 }
             };
+            // The class screen hides the HUD bar while it is up: its numbers showed through the cards (loop 4).
+            if (_classSelect.Visible) { if (_hudBar.Visible) { _hudBar.Visible = false; _hudHiddenForClass = true; } }
+            else if (_hudHiddenForClass) { _hudHiddenForClass = false; _hudBar.Visible = true; }
             if (_classSelect.Visible)
             {
                 // First launch: the world waits until a class is chosen.
@@ -576,8 +577,17 @@ namespace Lanternkeeper.View
             _cutIn.Render(Time.unscaledDeltaTime);
             _fade.Render(Time.unscaledDeltaTime);
             _mailbox.Render();
-            _augment.Update(Time.deltaTime, World, !_offline.Visible && !_classSelect.Visible);
-            _hunt.Update(World, Time.unscaledDeltaTime, !_uiHidden && !_offline.Visible && !_classSelect.Visible);
+            // The cards never cut into a panel the player is reading (they dealt over the open inventory and picked on their
+            // own seconds later, 11-23): while one is open the offer waits - its auto-pick clock held - and comes on close.
+            bool reading = _gear.Visible || _character.Visible || _ringPanel.Visible || _talents.Visible || _camp.Visible || _codex.Visible
+                || _mailbox.Visible || _settings.Visible || _help.Visible || _journal.Visible || _debug.Visible;
+            if (reading && World.Hero.AugOffer != null && !_augment.Visible) World.Hero.AugOfferAt = World.Time;
+            _augment.Update(Time.deltaTime, World, !_offline.Visible && !_classSelect.Visible && !reading);
+            // The hunt board steps aside while a window is open: windows cut it down to bare numbers (loop 2 P0).
+            _hunt.Update(World, Time.unscaledDeltaTime, !_uiHidden && !_offline.Visible && !_classSelect.Visible && !reading);
+            _tips.Hidden = _uiHidden || _offline.Visible || _classSelect.Visible || _augment.Visible;
+            _tips.Render(Time.unscaledDeltaTime);
+            _eventPrompt.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible);
             _banner.Update(Time.unscaledDeltaTime);
 
             var kb = UnityEngine.InputSystem.Keyboard.current;
@@ -640,18 +650,14 @@ namespace Lanternkeeper.View
                 if (_journal.Visible && (kb.tabKey.wasPressedThisFrame || kb.tKey.wasPressedThisFrame || kb.jKey.wasPressedThisFrame || kb.rKey.wasPressedThisFrame
                     || kb.cKey.wasPressedThisFrame || kb.uKey.wasPressedThisFrame || kb.hKey.wasPressedThisFrame)) _journal.Toggle(_toasts.History);
                 if (kb.tabKey.wasPressedThisFrame || kb.iKey.wasPressedThisFrame) _gear.Toggle(); // I: Diablo II's inventory key
-                if (kb.fKey.wasPressedThisFrame) { _gear.CycleFilter(); _saveSoon = true; }
-                if (kb.pKey.wasPressedThisFrame) { World.SetPreset(World.Hero.Preset + 1); _saveSoon = true; }
-                // K swaps the whole character and reloads the scene: a second press within two seconds confirms it.
-                if (kb.kKey.wasPressedThisFrame)
-                {
-                    if (Time.unscaledTime - _switchAskedAt < 2f) { SwitchCharacter(); return; }
-                    _switchAskedAt = Time.unscaledTime;
-                    _toasts.Tip("K를 한 번 더 누르면 다른 직업으로 전환됩니다");
-                }
+                if (kb.fKey.wasPressedThisFrame) { _gear.CycleFilter(); _saveSoon = true; _toasts.Setting("자동 분해 · " + GearPanel.SalvageName(World.AutoSalvage) + (World.AutoSalvage < 0 ? "" : " (전설 이상·잠근 장비는 지킴)")); }
+                if (kb.pKey.wasPressedThisFrame) { World.SetPreset(World.Hero.Preset + 1); _saveSoon = true; _toasts.Setting("스킬 배치 · " + SkillBook.PresetsFor(World.Hero.ClassId)[World.Hero.Preset].Name); }
+                // K opens the character screen (희승 11-23: "k키로 직업 변경하려고 했더니 안되던데" - it wanted a second press
+                // within two seconds, a rule nobody could see): four cards with each character's level and act, click or 1-4.
+                if (kb.kKey.wasPressedThisFrame) { OpenCharacters(); goto AfterInput; }
                 // GDD §14: the cartographer unlocks orders (Lv1) and the floor lock (Lv2).
-                if (kb.oKey.wasPressedThisFrame && World.CartographerLevel >= 1) { World.Order = (ExpeditionOrder)(((int)World.Order + 1) % 4); _saveSoon = true; }
-                if (kb.sKey.wasPressedThisFrame) { World.Stance = (Stance)(((int)World.Stance + 1) % 3); _saveSoon = true; }
+                if (kb.oKey.wasPressedThisFrame && World.CartographerLevel >= 1) { World.Order = (ExpeditionOrder)(((int)World.Order + 1) % 4); _saveSoon = true; _toasts.Setting("원정 명령 · " + OrderName(World.Order)); }
+                if (kb.sKey.wasPressedThisFrame) { World.Stance = (Stance)(((int)World.Stance + 1) % 3); _saveSoon = true; _toasts.Setting("태세 · " + SimWorld.StanceName(World.Stance) + (World.Stance == Stance.Charge ? " (주는 피해·받는 피해 +12%, 쉬지 않음)" : World.Stance == Stance.Careful ? " (주는 피해 −8%, 받는 피해 −12%, 자주 쉼)" : " (기본)")); }
                 // L cycles the idle switches: off → 층 고정 → 도감 먼저 (지도 제작자 Lv3) → off.
                 if (kb.lKey.wasPressedThisFrame && World.CartographerLevel >= 2)
                 {
@@ -661,6 +667,7 @@ namespace Lanternkeeper.View
                     else if (World.CodexFirst) { World.CodexFirst = false; World.TopLoop = true; }
                     else { World.FloorLock = false; World.CodexFirst = false; World.TopLoop = false; }
                     _saveSoon = true;
+                    _toasts.Setting("방치 방식 · " + (World.FloorLock ? "층 고정 (지금 층에서 계속 사냥)" : World.CodexFirst ? "도감 먼저" : World.TopLoop ? "꼭대기 반복" : "끔 (계속 내려감)"));
                 }
                 if (kb.cKey.wasPressedThisFrame) { if (_talents.Visible) _talents.Toggle(); if (_camp.Visible) _camp.Toggle(); _character.Toggle(); } // Diablo II's character screen
                 if (kb.yKey.wasPressedThisFrame) { if (_gear.Visible) _gear.Toggle(); if (_character.Visible) _character.Toggle(); if (_talents.Visible) _talents.Toggle(); _camp.Toggle(); }
@@ -694,7 +701,8 @@ namespace Lanternkeeper.View
                 if (kb.f11Key.wasPressedThisFrame) ToggleFullscreen();
                 if (kb.mKey.wasPressedThisFrame) _audio.ToggleMute();   // GDD §18
                 if (kb.vKey.wasPressedThisFrame) _view.Numbers.Toggle();
-                if (kb.zKey.wasPressedThisFrame) _minimap.Toggle();
+                // Z was only the minimap; for five seconds after a hand salvage it puts the piece back first (UX plan A7).
+                if (kb.zKey.wasPressedThisFrame && !_gear.TryUndoSalvage()) _minimap.Toggle();
                 if (kb.hKey.wasPressedThisFrame) _help.Toggle();
                 if (kb.uKey.wasPressedThisFrame) _mailbox.Toggle();
                 if (kb.gKey.wasPressedThisFrame) OpenFromMenu(6); // 사냥 일지
@@ -703,7 +711,7 @@ namespace Lanternkeeper.View
                     if (kb.qKey.wasPressedThisFrame) _mailbox.Move(-1);
                     if (kb.eKey.wasPressedThisFrame) _mailbox.Move(1);
                 }
-                if (kb.xKey.wasPressedThisFrame) { World.CycleLantern(); _saveSoon = true; }
+                if (kb.xKey.wasPressedThisFrame) { World.CycleLantern(); _saveSoon = true; _toasts.Setting("등불 색 · " + SimWorld.LanternColors[World.Hero.LanternColor].name); }
                 if (kb.bKey.wasPressedThisFrame) { Save(); BossKey(); }
                 if (kb.nKey.wasPressedThisFrame) _audio.ToggleMusic();
                 // GDD §5.3 등불 점화: Space, or a click on the lantern vial or on the hero who carries it.
@@ -780,7 +788,7 @@ namespace Lanternkeeper.View
 
         int _saveFailures;
 
-        void OnApplicationQuit() => Save();
+        void OnApplicationQuit() { Save(); _toasts?.OnApplicationQuit(); } // the journal keeps its last lines too
 
         void OnApplicationPause(bool paused)
         {

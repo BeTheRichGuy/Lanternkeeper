@@ -21,7 +21,7 @@ namespace Lanternkeeper.View
         const float SlotY = 45f, SlotH = 52f, HeatX = 136f, HeatW = 243f, XpX = 70f, XpY = 104f, XpW = 364f;
         readonly UiKit _ui;
         readonly SimWorld _world;
-        readonly RectTransform _root, _bar, _menu, _top;
+        readonly RectTransform _root, _bar, _menu, _top, _navLayer;
 
         // lantern
         readonly RectTransform _lifeOrb, _waxOrb;
@@ -64,7 +64,7 @@ namespace Lanternkeeper.View
         int _bossId = -1;
 
         // top line
-        readonly Text _where, _eta;
+        readonly Text _where, _eta, _goal;
         long _whereKey = -1;
         float _etaTimer;
         double _xpRate; // smoothed experience per second
@@ -74,11 +74,14 @@ namespace Lanternkeeper.View
         public Action<int> OpenMenu;
 
         /// <summary>Menu buttons: label, key, icon (one drawn set, 11-21; the label's first letter if a piece is missing).</summary>
-        static readonly (string label, string key, string icon)[] Menu =
+        // UX plan E1/D3: one set of names, and a two-letter label under each icon (a ring = skills, a letter = story read
+        // as riddles, UX audit #21).
+        static readonly (string label, string key, string icon, string tag)[] Menu =
         {
-            ("소지품", "I", "ui/ui3_menu_bag"), ("스킬 배치", "R", "ui/ui3_menu_ring"), ("스킬 트리", "T", "ui/ui3_menu_tree"),
-            ("야영지", "Y", "ui/ui3_menu_camp"), ("도감", "J", "ui/ui3_menu_codex"), ("기록", "U", "ui/ui3_menu_mail"),
-            ("일지", "G", "ui/ui3_menu_journal"), ("설정", "Esc", "ui/ui3_menu_settings"), ("도움말", "H", "ui/ui3_menu_help"), ("캐릭터", "C", "ui/ui3_menu_char"),
+            // The tag is the window's own title (loop 2: 스킬/트리/야영/기록/도움 against titles 스킬 배치/스킬 트리/…).
+            ("가방", "I", "ui/ui3_menu_bag", "가방"), ("스킬 배치", "R", "ui/ui3_menu_ring", "스킬 배치"), ("스킬 트리", "T", "ui/ui3_menu_tree", "스킬 트리"),
+            ("야영지", "Y", "ui/ui3_menu_camp", "야영지"), ("도감", "J", "ui/ui3_menu_codex", "도감"), ("이야기", "U", "ui/ui3_menu_mail", "이야기"),
+            ("알림 기록", "G", "ui/ui3_menu_journal", "알림 기록"), ("설정", "Esc", "ui/ui3_menu_settings", "설정"), ("도움말", "H", "ui/ui3_menu_help", "도움말"), ("능력치", "C", "ui/ui3_menu_char", "능력치"),
         };
 
         public HudBar(UiKit ui, SimWorld world)
@@ -120,7 +123,8 @@ namespace Lanternkeeper.View
             lp.Exit = () => _hoverVial = false;
             lp.LeftClick = () => _world.Ignite();
             _lifeText = UiKit.Label(_lifeOrb, "", -24f, -14f, Orb + 48f, 12f, 12, TextAnchor.UpperCenter, new Color(1f, 0.72f, 0.68f));
-            _igniteText = UiKit.Label(_lifeOrb, "", -24f, -28f, Orb + 48f, 12f, 8, TextAnchor.UpperCenter, UiKit.Dim);
+            // Above the drop icons, apart from the life number: right over "720 / 720" it read as that number's gauge (loop 3).
+            _igniteText = UiKit.Label(_lifeOrb, "", -24f, -84f, Orb + 48f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
 
             // the wax cup, right of the bar: its molten wax is the resonance gauge
             _waxOrb = UiKit.Rect(_bar, "wax orb", BarW + 2f, 0f, Orb, Orb);
@@ -144,6 +148,8 @@ namespace Lanternkeeper.View
             // the class resource: a thin line over the four slots
             UiKit.Fill(_bar, "heat back", HeatX, SlotY - 5f, HeatW, 3f, new Color(0f, 0f, 0f, 0.6f));
             _heat = UiKit.Fill(_bar, "heat", HeatX, SlotY - 5f, HeatW, 2f, Color.white);
+            // The bar's name, as the class card says it (loop 4: "자원 열기" on the card, an unnamed line here).
+            UiKit.Label(_bar, ClassSelectPanel.ResourceOf(world.Hero.ClassId), HeatX + HeatW + 4f, SlotY - 10f, 40f, 10f, 8, TextAnchor.UpperLeft, UiKit.Dim);
 
             for (int i = 0; i < 4; i++)
             {
@@ -189,6 +195,8 @@ namespace Lanternkeeper.View
             _top.anchoredPosition = new Vector2(0f, -4f);
             _where = UiKit.Label(_top, "", 0f, 0f, 320f, 14f, 12, TextAnchor.UpperCenter, UiKit.Ink);
             _eta = UiKit.Label(_top, "", 0f, 15f, 320f, 12f, 8, TextAnchor.UpperCenter, UiKit.Dim);
+            // UX plan D1: the next goal, always one line, under the level ETA.
+            _goal = UiKit.Label(_top, "", -160f, 28f, 640f, 16f, 12, TextAnchor.UpperCenter, new Color(1f, 0.85f, 0.4f)); // as big as the level line (loop 1: the smallest text on screen)
 
             // ---------- boss bar ----------
             _boss = UiKit.Rect(_root, "boss", 0f, 0f, BossW, 44f);
@@ -209,17 +217,22 @@ namespace Lanternkeeper.View
             }
             _bossGroup.alpha = 0f;
 
-            // ---------- bottom right menu ----------
-            const float B = 30f, G = 2f; // nine buttons in a row over the wax cup
-            float mw = Menu.Length * (B + G) - G;
-            _menu = UiKit.Rect(_root, "menu", 0f, 0f, mw, B);
-            _menu.anchorMin = _menu.anchorMax = new Vector2(1f, 0f);
-            _menu.pivot = new Vector2(1f, 0f);
-            _menu.anchoredPosition = new Vector2(-8f, Orb + 12f); // over the wax cup
+            // ---------- right-edge menu ----------
+            // A column down the right edge, names to its left (loop 3 P0): as a row over the wax cup it sat where the bag
+            // and skill windows reach, and either the windows cut it or it covered their buttons. No window reaches x 1196.
+            const float B = 30f, G = 2f, TagW = 40f;
+            float mh = Menu.Length * (B + G) - G;
+            _navLayer = UiKit.Rect(ui.Root, "HUD menu", 0f, 0f, 0f, 0f);
+            _navLayer.anchorMin = Vector2.zero; _navLayer.anchorMax = Vector2.one;
+            _navLayer.offsetMin = _navLayer.offsetMax = Vector2.zero;
+            _menu = UiKit.Rect(_navLayer, "menu", 0f, 0f, TagW + 4f + B, mh);
+            _menu.anchorMin = _menu.anchorMax = new Vector2(1f, 0.5f);
+            _menu.pivot = new Vector2(1f, 0.5f);
+            _menu.anchoredPosition = new Vector2(-6f, -76f); // under the minimap's hunt board, above the wax cup
             for (int i = 0; i < Menu.Length; i++)
             {
                 int index = i;
-                var back = ui.Sprite(_menu, "ui/ui2_cell", i * (B + G), 0f, B, B, sliced: true);
+                var back = ui.Sprite(_menu, "ui/ui2_cell", TagW + 4f, i * (B + G), B, B, sliced: true);
                 back.preserveAspect = false;
                 back.raycastTarget = true;
                 var hover = ui.Sprite(back.transform, "ui/ui2_cell_hover", 0f, 0f, B, B, sliced: true);
@@ -228,6 +241,13 @@ namespace Lanternkeeper.View
                 string icon = Menu[i].icon;
                 if (icon != null && ui.Catalog.Has(icon)) ui.Sprite(back.transform, icon, -1f, -1f, 32f, 32f); // 32 px art 1:1, its empty margin over the edge
                 else UiKit.Label(back.transform, Menu[i].label.Substring(0, 1), 0f, 0f, B, B, 12, TextAnchor.MiddleCenter, UiKit.Gold, title: true);
+                // The key as a small badge on the icon's top-right corner, the name alone underneath (loop 2: "J 이야기 U 기록"
+                // read the keys as part of the next name).
+                float kw = 4f + 5f * Menu[i].key.Length;
+                UiKit.Fill(back.transform, "key back", B - kw + 1f, -2f, kw, 10f, new Color(0f, 0f, 0f, 0.85f));
+                UiKit.Label(back.transform, Menu[i].key, B - kw + 1f, -2f, kw, 10f, 8, TextAnchor.UpperCenter, UiKit.Gold);
+                var tag = UiKit.Label(_menu, Menu[i].tag, 0f, i * (B + G) + 9f, TagW, 12f, 8, TextAnchor.UpperRight, UiKit.Dim);
+                tag.horizontalOverflow = HorizontalWrapMode.Overflow;
                 var p = back.gameObject.AddComponent<UiPointer>();
                 p.Enter = () => { hover.enabled = true; _hoverMenu = index; };
                 p.Exit = () => { hover.enabled = false; if (_hoverMenu == index) _hoverMenu = -1; };
@@ -249,11 +269,12 @@ namespace Lanternkeeper.View
             _card.gameObject.SetActive(false);
         }
 
-        public bool Visible { get => _root.gameObject.activeSelf; set => _root.gameObject.SetActive(value); }
+        public bool Visible { get => _root.gameObject.activeSelf; set { _root.gameObject.SetActive(value); _navLayer.gameObject.SetActive(value); } }
 
         public void Render(float dt)
         {
             if (!Visible) return;
+            if (_navLayer.GetSiblingIndex() != _navLayer.parent.childCount - 1) _navLayer.SetAsLastSibling(); // over any window opened since
             var h = _world.Hero;
             float k = 1f - Mathf.Exp(-dt / 0.12f);
             // Pulses step eight times a second: the HUD shares the canvas with the windows, and a colour change every
@@ -280,7 +301,8 @@ namespace Lanternkeeper.View
             if (igniteKey != _igniteKey)
             {
                 _igniteKey = igniteKey;
-                _igniteText.text = on ? $"점화 {secs}초" : cdLeft > 0f ? $"{secs / 60}:{secs % 60:00}" : "점화 가능";
+                // The key with the word (loop 2 P0: "점화 가능" said neither how nor what).
+                _igniteText.text = on ? $"점화 중 {secs}초 · 피해 +15%" : cdLeft > 0f ? $"점화 {secs / 60}:{secs % 60:00}" : "점화 가능 [Space]";
             }
             _igniteText.color = on ? UiKit.Gold : cdLeft > 0f ? UiKit.Dim : new Color(1f, 0.8f, 0.45f, 0.75f + 0.25f * Mathf.Sin(t * 4f));
 
@@ -376,7 +398,7 @@ namespace Lanternkeeper.View
                 _whereKey = key;
                 var act = _world.ActNow;
                 string where = _world.IsActBossFloor ? "막 " + act.Numeral + " · " + act.Name + " · 보스"
-                    : "막 " + act.Numeral + " · " + act.Name + "  " + (_world.Zone + 1) + "-" + (_world.FloorInZone + 1);
+                    : "막 " + act.Numeral + " · " + act.Name + " · " + (_world.FloorInAct + 1) + " / " + SimWorld.ActLength + "층"; // one way of saying where, as the goal line counts it (loop 2)
                 int lap = _world.ActLoop - (EnemyRoster.Acts.Length - 1);
                 if (lap > 0) where += " · " + (lap + 1) + "회차";
                 string lv = "Lv " + h.Level + (h.EmberLevel > 0 ? " <color=#ffb060>+" + h.EmberLevel + "</color>" : "");
@@ -401,6 +423,8 @@ namespace Lanternkeeper.View
                 _xpRate = _xpRate <= 0 ? rate : _xpRate + (rate - _xpRate) * 0.1;
                 _lastXpTotal = total; _lastXpAt = now;
             }
+            string goal = _world.NextGoal();
+            if (_goal.text != goal) _goal.text = goal;
             if (h.Level >= SimWorld.LevelCap) { _eta.text = _world.PendingEmber > 0 ? "다음 환생 시 잔불 +" + _world.PendingEmber : ""; return; }
             double left = h.XpToNext - h.Xp;
             _eta.text = _xpRate > 0.01 ? "Lv " + (h.Level + 1) + "까지 약 " + Duration(left / _xpRate) : "";
@@ -455,13 +479,9 @@ namespace Lanternkeeper.View
                 key = "s" + _hoverSkill + hs.Id + uses;
                 if (key != _cardKey)
                 {
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append("<b>").Append(hs.Name).Append("</b>  <color=#a8d0ff>숙련 ").Append(lv).Append("</color>\n");
-                    sb.Append("위력 +").Append(((SkillBook.LevelPower(lv) - 1f) * 100f).ToString("0")).Append("%  범위 +")
-                      .Append(((SkillBook.LevelArea(lv) - 1f) * 100f).ToString("0")).Append("%  분신 ").Append(SkillBook.LevelCopies(lv));
-                    if (lv < SkillBook.MaxSkillLevel) sb.Append("\n<color=#8a8178>다음 숙련까지 ").Append(SkillBook.UsesFor(lv + 1) - uses).Append("회</color>");
-                    if (hs.Cooldown > 0f) sb.Append("  <color=#8a8178>재사용 ").Append(hs.Cooldown.ToString("0.#")).Append("초</color>");
-                    text = sb.ToString();
+                    // The shared skill card, brief (UX plan B2): what it does, its numbers, the resonance it sets up, 숙련.
+                    var conv = h.Ring.ModsFor(_hoverSkill).Convert;
+                    text = SkillCard.Build(h, hs, brief: true, elem: conv, sigil: h.Ring.Sigils[_hoverSkill]);
                 }
                 anchor = _frame[_hoverSkill].rectTransform;
             }
@@ -480,17 +500,12 @@ namespace Lanternkeeper.View
                     text = "<b>공명</b>  " + _waxKey + "%\n<color=#8a8178>원소가 서로 터질 때마다 촛농이 차오르고, 가득 차면 대공명이 터진다</color>";
                 anchor = _waxOrb;
             }
-            else if (_hoverMenu >= 0)
-            {
-                key = "m" + _hoverMenu;
-                if (key != _cardKey) text = "<b>" + Menu[_hoverMenu].label + "</b>  <color=#8a8178>" + Menu[_hoverMenu].key + "</color>";
-                anchor = (RectTransform)_menu.GetChild(_hoverMenu);
-            }
+            // The menu needs no card: each button shows its name beside it and its key on a badge (loop 3).
             if (key == null) { if (_cardKey != null) { _cardKey = null; _card.gameObject.SetActive(false); } return; }
             if (key == _cardKey) return;
             _cardKey = key;
             _cardText.text = text;
-            float w = Mathf.Min(220f, _cardText.preferredWidth + 2f);
+            float w = Mathf.Min(hs != null ? 340f : 220f, _cardText.preferredWidth + 2f); // a skill card carries sentences
             _cardText.rectTransform.sizeDelta = new Vector2(w, 30f);
             float hgt = _cardText.preferredHeight + 12f;
             _card.sizeDelta = new Vector2(w + 16f, hgt);

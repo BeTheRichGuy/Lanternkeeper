@@ -30,7 +30,7 @@ namespace Lanternkeeper.View
         static readonly string[] TabNames = { "진화", "적", "도전 과제" };
         // Opaque dark card colours: the GUI blends in linear space, so even 3% white over the near-black body reads mid-grey.
         static readonly Color Card = new Color(0.075f, 0.068f, 0.062f, 0.95f), CardLit = new Color(0.17f, 0.12f, 0.06f, 0.95f), CardBoss = new Color(0.12f, 0.075f, 0.065f, 0.95f);
-        const string InfoHint = "J 닫기";
+        const string InfoHint = ""; // the left of the foot line is for the hover text; the close hint sits at the right
 
         public CodexPanel(UiKit ui, SimWorld world)
         {
@@ -51,7 +51,8 @@ namespace Lanternkeeper.View
                 _actText[a] = ui.Button(_actRow, "막 " + EnemyRoster.Acts[a].Numeral, a * 52f, 0f, 48f, 20f, () => { _act = act; _stamp = -1; }).GetComponentInChildren<Text>();
             }
             _page = UiKit.Rect(_win, "page", 16f, Top, W - 32f, H - Top - 28f);
-            _info = UiKit.Label(_win, InfoHint, 16f, H - 22f, W - 32f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _info = UiKit.Label(_win, InfoHint, 16f, H - 22f, W - 130f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            UiKit.Label(_win, "(J) 닫기", W - 112f, H - 22f, 96f, 14f, 12, TextAnchor.UpperRight, UiKit.Dim);
             SetVisible(false);
         }
 
@@ -130,7 +131,9 @@ namespace Lanternkeeper.View
                 Keep(UiKit.Fill(_page, "edge", x, y + ch - 1f, cw, 1f, taken ? new Color(1f, 0.8f, 0.4f, 0.5f) : UiKit.Line));
                 Icon("icon/skill_" + skill.Id, x + 6f, y + 11f, taken ? Color.white : new Color(0.8f, 0.8f, 0.8f));
                 Keep(UiKit.Label(_page, "→", x + 40f, y + 18f, 14f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim));
-                Icon("icon/skill_" + (evo?.Id ?? skill.Id), x + 54f, y + 11f, taken ? Color.white : new Color(0f, 0f, 0f, 0.75f));
+                // Not evolved yet: its own art (or the base skill's) dimmed with a small lock, never a black square.
+                Icon("icon/skill_" + (evo?.Id ?? skill.Id), x + 54f, y + 11f, taken ? Color.white : new Color(0.42f, 0.42f, 0.42f), "icon/skill_" + skill.Id);
+                if (!taken) Lock(x + 54f + 32f - 11f, y + 11f + 32f - 12f);
                 string evoName = evo?.Name ?? skill.Name;
                 Keep(UiKit.Label(_page, (taken ? "<color=#ffcf5a>" + evoName + "</color>" : evoName) + "  <color=#8a8178>" + skill.Name + "</color>",
                     x + 92f, y + 6f, cw - 96f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink));
@@ -138,7 +141,7 @@ namespace Lanternkeeper.View
                 float k = Mathf.Clamp01(mastery / (float)SkillTree.EvoMastery);
                 Keep(UiKit.Fill(_page, "bar back", x + 92f, y + 26f, 120f, 3f, new Color(0f, 0f, 0f, 0.6f)));
                 Keep(UiKit.Fill(_page, "bar", x + 92f, y + 26f, 120f * k, 3f, k >= 1f ? UiKit.Gold : new Color(0.6f, 0.8f, 1f)));
-                string state = taken ? "<color=#9fd28a>진화 완료</color>" : mastery >= SkillTree.EvoMastery ? "<color=#ffcf5a>트리에서 습득 가능</color>" : "숙련 " + mastery + " / " + SkillTree.EvoMastery;
+                string state = taken ? "<color=#9fd28a>진화 완료</color>" : mastery >= SkillTree.EvoMastery ? "<color=#ffcf5a>트리에서 습득 가능</color>" : "숙련 " + mastery + " / " + SkillTree.EvoMastery + " (" + SkillTree.EvoMastery + "에서 진화)";
                 Keep(UiKit.Label(_page, state, x + 92f, y + 32f, cw - 96f, 12f, 8, TextAnchor.UpperLeft, UiKit.Dim));
                 var p = card.gameObject.AddComponent<UiPointer>();
                 p.Enter = () => _info.text = "<color=#ffcf5a>" + evoName + "</color>  " + skill.Name + "의 진화 · 숙련 " + mastery + " / " + SkillTree.EvoMastery;
@@ -146,20 +149,38 @@ namespace Lanternkeeper.View
             }
             // resonance mastery along the bottom
             float ry = 20f + ((cards.Count + 2) / 3) * (ch + 4f) + 6f;
-            Keep(UiKit.Label(_page, "공명 숙련  <color=#8a8178>300 · 2,000 · 10,000회</color>", 0f, ry, 400f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold));
+            Keep(UiKit.Label(_page, "공명 숙련  <color=#8a8178>횟수를 채우면 그 공명의 피해가 I단계 +15%, II단계부터 +30%</color>", 0f, ry, W - 32f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold));
             var res = new[] { Resonance.Shatter, Resonance.Overload, Resonance.Plague, Resonance.Devour, Resonance.Collapse };
+            int[] steps = { 300, 2000, 10000 }; // Elements.MasteryTier's thresholds
+            string[] roman = { "I", "II", "III" };
             for (int i = 0; i < res.Length; i++)
             {
                 int n = h.ResonanceCounts[(int)res[i]];
                 int tier = Elements.MasteryTier(n);
-                Keep(UiKit.Label(_page, (tier > 0 ? "<color=#ffcf5a>" : "<color=#cfc6b8>") + FxView.ResonanceName(res[i]) + " " + (tier == 0 ? "—" : tier == 1 ? "I" : tier == 2 ? "II" : "III")
-                    + "</color>  <color=#8a8178>" + n.ToString("N0") + "</color>", i * 168f, ry + 18f, 164f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink));
+                string next = tier >= 3 ? "최대 단계" : n.ToString("N0") + " / " + steps[tier].ToString("N0") + " → " + roman[tier] + "단계";
+                Keep(UiKit.Label(_page, (tier > 0 ? "<color=#ffcf5a>" : "<color=#cfc6b8>") + FxView.ResonanceName(res[i]) + (tier > 0 ? " " + roman[tier - 1] + "단계" : "") + "</color>",
+                    i * 168f, ry + 18f, 164f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink));
+                Keep(UiKit.Label(_page, next, i * 168f, ry + 34f, 164f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim));
             }
         }
 
-        void Icon(string key, float x, float y, Color tint)
+        /// <summary>A small lock drawn from rectangles (no lock art, and the font may not carry the glyph).</summary>
+        void Lock(float x, float y)
         {
-            var img = Keep(_ui.Sprite(_page, _ui.Catalog.Has(key) ? key : "ui/dot", x, y, 32f, 32f));
+            var c = new Color(0.86f, 0.82f, 0.74f);
+            Keep(UiKit.Fill(_page, "lock shackle", x + 2f, y, 5f, 1f, c));
+            Keep(UiKit.Fill(_page, "lock shackle", x + 2f, y, 1f, 4f, c));
+            Keep(UiKit.Fill(_page, "lock shackle", x + 6f, y, 1f, 4f, c));
+            Keep(UiKit.Fill(_page, "lock back", x - 1f, y + 4f, 11f, 8f, new Color(0f, 0f, 0f, 0.7f)));
+            Keep(UiKit.Fill(_page, "lock body", x, y + 5f, 9f, 6f, c));
+        }
+
+        /// <summary>An evolution without its own art borrows its base skill's (a white square read as unfinished, UX audit #23).</summary>
+        void Icon(string key, float x, float y, Color tint, string fallback = null)
+        {
+            string use = _ui.Catalog.Has(key) ? key : fallback != null && _ui.Catalog.Has(fallback) ? fallback : null;
+            if (use == null) return;
+            var img = Keep(_ui.Sprite(_page, use, x, y, 32f, 32f));
             img.color = tint;
         }
 

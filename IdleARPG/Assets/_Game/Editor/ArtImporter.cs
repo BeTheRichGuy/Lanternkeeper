@@ -24,7 +24,7 @@ namespace Lanternkeeper.EditorTools
         public static readonly (string key, string src)[] Characters =
         {
             ("hero/ashknight",  "characters/ember_knight/B_lantern"),
-            ("hero/oathknight", "characters/oath_knight/A_mourning_paladin"),
+            ("hero/oathknight", "characters/oath_knight/E_unveiled"), // 11-24: face under a mourning hood, unlike the ash knight's closed visor
             ("hero/windhunter", "characters/wind_hunter/A_hooded_ranger"),
             ("hero/starseer",   "characters/star_seer/A_astrologer"),
             ("enemy/villager",  "characters/monster/ashen_villager"),

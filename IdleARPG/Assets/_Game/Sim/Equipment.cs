@@ -6,6 +6,24 @@ namespace Lanternkeeper.Sim
     /// <summary>Nine equip spots (GDD §8.3, M1 subset). Two ring spots share <see cref="Slot.Ring"/>.</summary>
     public enum EquipSpot { Weapon, Helm, Armor, Gloves, Boots, Belt, Ring1, Ring2, Amulet }
 
+    /// <summary>
+    /// The one answer to "is this piece better?" (UX plan §3.0 다), checked in this order: too high to wear, a ◆ trade,
+    /// ▲▲ (+10% 전투력), ▲ (+1%), ▼ (−1%), else ═.
+    /// </summary>
+    public enum GearArrow { Locked, Trade, BigUp, Up, Down, Same }
+
+    /// <summary>A piece against what is worn in <see cref="Spot"/>. The three ratios are after ÷ now (1 = no change).</summary>
+    public struct GearCompare
+    {
+        public EquipSpot Spot;
+        public float Power, Offence, Survival;
+        /// <summary>Legendary powers gained (or lost) by the swap.</summary>
+        public int Essences;
+        public GearArrow Arrow;
+        /// <summary>Auto-equip takes ▲ and ▲▲ only: a ◆ trade is the player's call and stays in the bag.</summary>
+        public bool AutoEquips => Arrow == GearArrow.Up || Arrow == GearArrow.BigUp;
+    }
+
     /// <summary>Everything gear and level add up to. Recomputed whenever gear or level changes.</summary>
     public sealed class Derived
     {
@@ -188,23 +206,78 @@ namespace Lanternkeeper.Sim
         static readonly Stats BaseStats = new Stats();
         static readonly Derived BaseDerived = new Derived();
 
+        // ---------- 전투력 and the arrows (UX plan §3.0 다): one number, one function, for the bag, the tooltip and auto-equip ----------
+
+        /// <summary>Each legendary power worn is worth this much 전투력 (the flat +15% the compare always gave one).</summary>
+        public const float EssencePower = 1.15f;
+        /// <summary>Arrow thresholds on the 전투력 ratio, and the share a ◆ trade's smaller side must reach.</summary>
+        public const float UpAt = 1.01f, BigUpAt = 1.10f, DownAt = 0.99f, TradeAt = 0.05f;
+
+        static float Power(Stats s, Derived d) =>
+            Dps(s, d) * (float)Math.Sqrt(Ehp(s, d)) * (float)Math.Pow(EssencePower, d.Essences.Count);
+
         /// <summary>
-        /// How much better the hero would be with <paramref name="item"/> in <paramref name="spot"/>: 1 = same,
-        /// &gt;1 better. Offense counts fully, defense at half weight (square root), essences add a flat bonus.
-        /// Read-only: the hero's state is not touched.
+        /// 전투력: offence (expected DPS) × √survival (effective HP) × legendary powers, from gear and level alone — the
+        /// hero's live numbers also carry talents, runewords and the melee guard, which a what-if cannot, so comparing
+        /// against them asked late upgrades to beat the talent bonus too.
         /// </summary>
+        public static float Power(Hero h)
+        {
+            Calc(h.Gear, h.IntegratedLevel, -1, null, BaseStats, BaseDerived, h.ClassId, h.WickLevel);
+            return Power(BaseStats, BaseDerived);
+        }
+
+        /// <summary>
+        /// What wearing <paramref name="item"/> in <paramref name="spot"/> would do: Power(after) ÷ Power(now), the
+        /// offence and survival ratios on their own, and the arrow they earn. Read-only: the hero is not touched.
+        /// </summary>
+        public static GearCompare Compare(Hero h, Item item, EquipSpot spot)
+        {
+            Calc(h.Gear, h.IntegratedLevel, -1, null, BaseStats, BaseDerived, h.ClassId, h.WickLevel);
+            Calc(h.Gear, h.IntegratedLevel, (int)spot, item, ScratchStats, ScratchDerived, h.ClassId, h.WickLevel);
+            var c = new GearCompare
+            {
+                Spot = spot,
+                Power = Power(ScratchStats, ScratchDerived) / Power(BaseStats, BaseDerived),
+                Offence = Dps(ScratchStats, ScratchDerived) / Dps(BaseStats, BaseDerived),
+                Survival = Ehp(ScratchStats, ScratchDerived) / Ehp(BaseStats, BaseDerived),
+                Essences = ScratchDerived.Essences.Count - BaseDerived.Essences.Count,
+            };
+            c.Arrow = item.ReqLevel > h.IntegratedLevel ? GearArrow.Locked : ArrowOf(c.Power, c.Offence, c.Survival);
+            return c;
+        }
+
+        /// <summary>Against the spot a click would use: an empty one of its kind first, else (two rings) the one it improves most.</summary>
+        public static GearCompare Compare(Hero h, Item item)
+        {
+            var spots = Equipment.SpotsFor(item.Slot);
+            foreach (var s in spots) if (h.Gear.Spots[(int)s] == null) return Compare(h, item, s);
+            var best = Compare(h, item, spots[0]);
+            for (int i = 1; i < spots.Length; i++)
+            {
+                var c = Compare(h, item, spots[i]);
+                if (c.Power > best.Power) best = c;
+            }
+            return best;
+        }
+
+        /// <summary>The order of the plan's rules: a ◆ trade first (offence and survival pull apart, each by 5% or more), then the 전투력 steps.</summary>
+        static GearArrow ArrowOf(float power, float offence, float survival)
+        {
+            float o = offence - 1f, s = survival - 1f;
+            if (o * s < 0f && Math.Min(Math.Abs(o), Math.Abs(s)) >= TradeAt) return GearArrow.Trade;
+            if (power >= BigUpAt) return GearArrow.BigUp;
+            if (power >= UpAt) return GearArrow.Up;
+            if (power <= DownAt) return GearArrow.Down;
+            return GearArrow.Same;
+        }
+
+        /// <summary>The 전투력 ratio alone (1 = same, &gt;1 better) and the offence change; see <see cref="Compare(Hero, Item, EquipSpot)"/>.</summary>
         public static float Upgrade(Hero h, Item item, EquipSpot spot, out float dpsChange)
         {
-            // Both sides from gear + level alone: the hero's live numbers also carry talents, runewords and the melee guard,
-            // which the what-if does not, so comparing against them asked late upgrades to beat the talent bonus too.
-            Calc(h.Gear, h.IntegratedLevel, -1, null, BaseStats, BaseDerived, h.ClassId, h.WickLevel);
-            float dps0 = Dps(BaseStats, BaseDerived), ehp0 = Ehp(BaseStats, BaseDerived);
-            int ess0 = BaseDerived.Essences.Count;
-            Calc(h.Gear, h.IntegratedLevel, (int)spot, item, ScratchStats, ScratchDerived, h.ClassId, h.WickLevel);
-            float dps1 = Dps(ScratchStats, ScratchDerived), ehp1 = Ehp(ScratchStats, ScratchDerived);
-            int ess1 = ScratchDerived.Essences.Count;
-            dpsChange = dps1 / dps0 - 1f;
-            return dps1 / dps0 * (float)Math.Sqrt(ehp1 / ehp0) * (1f + 0.15f * (ess1 - ess0));
+            var c = Compare(h, item, spot);
+            dpsChange = c.Offence - 1f;
+            return c.Power;
         }
     }
 }

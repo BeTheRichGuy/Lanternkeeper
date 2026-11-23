@@ -22,6 +22,12 @@ namespace Lanternkeeper.View
         readonly SimWorld _world;
         readonly RectTransform _win, _treeLayer;
         readonly Text _title, _points, _autoLabel, _cardName, _cardBody;
+        // Labels Refresh rewrites (loop 1 P1-13): a row's name follows its evolution, the heads count what is taken.
+        readonly List<(Text label, string skillId)> _rowNames = new List<(Text, string)>();
+        readonly Text[] _passiveHeads = new Text[3];
+        Text _ultHead;
+        Text _resetLabel;
+        float _resetAskedAt = -10f;
         readonly Image _cardIcon, _cardFrame;
         readonly Image[] _ringIcons = new Image[4];
         public bool Visible { get; private set; }
@@ -57,7 +63,16 @@ namespace Lanternkeeper.View
             _points = UiKit.Label(_win, "", 16f, 34f, 300f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold);
             var auto = ui.Button(_win, "", 330f, 32f, 140f, 18f, () => { _world.SetTreeAuto(!_world.Hero.TreeAuto); Changed(); });
             _autoLabel = auto.GetComponentInChildren<Text>();
-            ui.Button(_win, "초기화", 476f, 32f, 70f, 18f, () => { _world.ResetTree(); Changed(); });
+            // UX plan B6③: a reset is undone by nothing - the first click asks, a second within 3 s does it.
+            var reset = ui.Button(_win, "초기화", 476f, 32f, 70f, 18f, null);
+            var resetLabel = reset.GetComponentInChildren<Text>();
+            reset.onClick.AddListener(() =>
+            {
+                if (Time.unscaledTime - _resetAskedAt < 3f) { _world.ResetTree(); Changed(); _resetAskedAt = -10f; if (resetLabel != null) resetLabel.text = "초기화"; return; }
+                _resetAskedAt = Time.unscaledTime;
+                if (resetLabel != null) resetLabel.text = "<color=#ff8a70>정말?</color>";
+            });
+            _resetLabel = resetLabel;
             // one tab per branch, as Diablo II's three skill tabs
             for (int b = 0; b < 3; b++)
             {
@@ -163,6 +178,7 @@ namespace Lanternkeeper.View
             foreach (var e in _edges) UnityEngine.Object.Destroy(e.line.gameObject);
             foreach (var go in _rowBits) UnityEngine.Object.Destroy(go);
             _rowBits.Clear();
+            _rowNames.Clear();
             _nodes.Clear();
             _edges.Clear();
             _classId = _world.Hero.ClassId;
@@ -177,23 +193,37 @@ namespace Lanternkeeper.View
                 var lv = UiKit.Label(_treeLayer, "Lv " + SkillBook.Get(n.SkillId).Unlock, 14f, pp.y - 6f, 48f, 12f, 8, TextAnchor.UpperRight, UiKit.Dim);
                 lv.gameObject.name = "row#" + n.Branch;
                 _rowBits.Add(lv.gameObject);
-                var nm = UiKit.Label(_treeLayer, SkillBook.Get(n.SkillId).Name, EvoX + 30f, pp.y - 6f, 150f, 12f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+                var nm = UiKit.Label(_treeLayer, SkillBook.Get(n.SkillId).Name, EvoX + 30f, pp.y - 6f, 196f, 12f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+                nm.horizontalOverflow = HorizontalWrapMode.Overflow;
                 nm.gameObject.name = "row#" + n.Branch;
                 _rowBits.Add(nm.gameObject);
+                _rowNames.Add((nm, n.SkillId));
             }
             for (int b = 0; b < 3; b++)
             {
-                var head = UiKit.Label(_treeLayer, "갈래 강화", 440f, 306f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+                var head = _passiveHeads[b] = UiKit.Label(_treeLayer, "갈래 강화", 440f, 306f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
                 head.gameObject.name = "row#" + b;
                 _rowBits.Add(head.gameObject);
-                var keys = UiKit.Label(_treeLayer, "핵심 특성\n<color=#6f6860>갈래 포인트 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "</color>",
+                // Spelled as a condition, in a readable colour (loop 2: "갈래 포인트 4 · 9 · 15" was near-invisible grey).
+                var keys = UiKit.Label(_treeLayer, "핵심 특성\n<color=#c8c0a8>갈래에 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트 쓰면 열림</color>",
                     440f, 196f, 160f, 30f, 12, TextAnchor.UpperLeft, UiKit.Dim);
                 keys.gameObject.name = "row#" + b;
                 _rowBits.Add(keys.gameObject);
             }
-            var ult = UiKit.Label(_treeLayer, "궁극기  <color=#6f6860>Lv" + SkillBook.UltimateLevel + " · 하나만</color>", 440f, 84f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            var ult = _ultHead = UiKit.Label(_treeLayer, "궁극기  <color=#6f6860>Lv" + SkillBook.UltimateLevel + " · 하나만</color>", 440f, 84f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            ult.horizontalOverflow = HorizontalWrapMode.Overflow;
             _rowBits.Add(ult.gameObject);
             ult.gameObject.name = "ult";
+            // Names under the right-hand nodes (loop 2: keystones and the second ultimate were pictures only).
+            foreach (var n in t.Nodes)
+            {
+                if (n.Kind != TreeNodeKind.Key && n.Kind != TreeNodeKind.Ultimate) continue;
+                var pp = Pos(n);
+                string label = n.Kind == TreeNodeKind.Key ? Talents.KeystoneName(n.Branch, n.KeyIndex) : SkillBook.Get(n.SkillId).Name;
+                var under = UiKit.Label(_treeLayer, label, pp.x - 30f, pp.y + 22f, 60f, 20f, 8, TextAnchor.UpperCenter, UiKit.Dim);
+                under.gameObject.name = n.Kind == TreeNodeKind.Key ? "row#" + n.Branch : "ult name";
+                _rowBits.Add(under.gameObject);
+            }
 
             // Branch colour = the most common element among its skills.
             for (int b = 0; b < 3; b++)
@@ -331,7 +361,32 @@ namespace Lanternkeeper.View
             var h = _world.Hero;
             int points = SkillTree.Points(h), spent = SkillTree.Spent(h);
             _title.text = "스킬 트리 · " + SkillBook.ClassName(h.ClassId);
-            _points.text = "포인트 " + spent + " / " + points + (points > spent ? "  <color=#9fd28a>남음 " + (points - spent) + "</color>" : "");
+            // "남은 포인트 0 (받은 50)": 50 / 50 read as either all spent or all left (loop 2).
+            _points.text = "남은 포인트 " + (points > spent ? "<color=#9fd28a>" + (points - spent) + "</color>" : "0")
+                + "  <color=#8a8178>(받은 " + points + " = 레벨 " + h.IntegratedLevel + " + 처음 " + SkillTree.StartBonus + ")</color>";
+            _points.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var tree = SkillTree.For(h.ClassId);
+            foreach (var (label, id) in _rowNames)
+            {
+                var def = SkillBook.Get(id);
+                bool evolved = def.EvolveTo != null && h.Evolved.Contains(def.BaseId);
+                label.text = evolved ? def.Name + "  <color=#ffcf5a>→ " + SkillBook.Get(def.EvolveTo).Name + "</color>" : def.Name;
+            }
+            for (int b = 0; b < 3; b++)
+            {
+                if (_passiveHeads[b] == null) continue;
+                int have = 0, all = 0;
+                foreach (var n in tree.Nodes)
+                    if (n.Kind == TreeNodeKind.Passive && n.Branch == b) { all++; if (SkillTree.Has(h, n.Id)) have++; }
+                _passiveHeads[b].text = "갈래 강화  <color=#6f6860>" + have + " / " + all + "</color>";
+            }
+            if (_ultHead != null)
+            {
+                string chosen = null;
+                foreach (var n in tree.Nodes)
+                    if (n.Kind == TreeNodeKind.Ultimate && SkillTree.Has(h, n.Id)) chosen = SkillBook.Get(n.SkillId).Name;
+                _ultHead.text = chosen != null ? "궁극기  <color=#ffcf5a>" + chosen + "</color>" : "궁극기  <color=#6f6860>Lv" + SkillBook.UltimateLevel + " · 하나만</color>"; // one line: the card starts at 600
+            }
             _autoLabel.text = h.TreeAuto ? "자동 분배: 켬" : "자동 분배: 끔";
             _autoLabel.color = h.TreeAuto ? UiKit.Good : UiKit.Dim;
 
@@ -388,10 +443,9 @@ namespace Lanternkeeper.View
                 {
                     var s = SkillBook.Get(n.SkillId);
                     name = s.Name;
-                    sb.Append(ElementName(s.Elem)).Append(" · 재사용 대기시간 ").Append(s.Cooldown.ToString("0.#")).Append("초 · ").Append(RoleName(s.Role));
-                    sb.Append("\n<color=#8a8178>열면 스킬 칸에 넣을 수 있다. 통합 레벨 ").Append(s.Unlock).Append("부터.</color>");
-                    int lv = SkillTree.MasteryOf(h, s.Id);
-                    if (lv > 1) sb.Append("\n<color=#a8d0ff>숙련 ").Append(lv).Append("</color>");
+                    // UX plan B2/B5: the shared skill card - what it does first, then the numbers (two ultimates read alike before).
+                    sb.Append(SkillCard.Build(h, s, title: false));
+                    sb.Append("\n<color=#8a8178>열면 스킬 칸에 넣을 수 있습니다. 통합 레벨 ").Append(s.Unlock).Append("부터.</color>");
                     break;
                 }
                 case TreeNodeKind.Mod:
@@ -416,14 +470,19 @@ namespace Lanternkeeper.View
                     var s = SkillBook.Get(n.SkillId);
                     var evo = s.EvolveTo != null ? SkillBook.Get(s.EvolveTo) : null;
                     name = "진화 · " + (evo != null ? evo.Name : s.Name);
-                    sb.Append(s.Name).Append("이(가) 진화한다.\n<color=#a8d0ff>숙련 ").Append(SkillTree.MasteryOf(h, s.Id)).Append(" / ").Append(SkillTree.EvoMastery).Append("</color>");
+                    sb.Append(s.Name).Append(Josa(s.Name, "이", "가")).Append(" 진화합니다.");
+                    string change = evo != null ? GameText.Skill(evo.Id) : null;
+                    if (!string.IsNullOrEmpty(change)) sb.Append("\n<color=#e8e0d0>").Append(change).Append("</color>");
+                    sb.Append("\n<color=#a8d0ff>숙련 ").Append(SkillTree.MasteryOf(h, s.Id)).Append(" / ").Append(SkillTree.EvoMastery).Append("</color>");
                     break;
                 }
                 default:
                 {
                     var s = SkillBook.Get(n.SkillId);
                     name = "궁극기 · " + s.Name;
-                    sb.Append("스킬이 한 바퀴 돌 때마다 차오르는 궁극기. 둘 중 하나만 선택 가능.");
+                    // What it does, like any skill (loop 1: both ultimates said the same charge sentence and nothing else).
+                    sb.Append(SkillCard.Build(h, s, title: false))
+                      .Append("\n<color=#8a8178>스킬이 한 바퀴 돌 때마다 차오릅니다. 둘 중 하나만 고를 수 있습니다.</color>");
                     break;
                 }
             }
@@ -436,6 +495,14 @@ namespace Lanternkeeper.View
             _cardIcon.enabled = icon;
             _cardFrame.enabled = icon;
             if (icon) _cardIcon.sprite = _ui.Catalog.Get(IconFor(n));
+        }
+
+        /// <summary>The Korean particle by the last syllable: 받침 → <paramref name="with"/> (이/을/은), none → <paramref name="without"/>.</summary>
+        static string Josa(string word, string with, string without)
+        {
+            if (string.IsNullOrEmpty(word)) return without;
+            char c = word[word.Length - 1];
+            return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 != 0 ? with : without;
         }
 
         static string ElementName(Element e)
