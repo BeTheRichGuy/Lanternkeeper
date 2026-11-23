@@ -1,0 +1,22 @@
+# Unity generated
+IdleARPG/[Ll]ibrary/
+IdleARPG/[Tt]emp/
+IdleARPG/[Oo]bj/
+IdleARPG/[Ll]ogs/
+IdleARPG/[Uu]ser[Ss]ettings/
+IdleARPG/[Bb]uild/
+IdleARPG/[Bb]uilds/
+IdleARPG/[Mm]emoryCaptures/
+IdleARPG/Screenshots/
+
+# IDE
+*.csproj
+*.sln
+*.suo
+*.user
+.vs/
+.idea/
+
+# Local-only agent settings (.codex/config.toml holds an API token)
+.claude/settings.local.json
+.codex/
