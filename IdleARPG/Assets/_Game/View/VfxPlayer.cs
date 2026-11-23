@@ -30,6 +30,8 @@ namespace Lanternkeeper.View
         readonly Transform _root;
         readonly SpriteCatalog _catalog;
         readonly Material _material;
+        /// <summary>The sheet material (HDR hot core), for sheets drawn outside the player (status loops on units).</summary>
+        public Material Material => _material;
         readonly List<Play> _live = new List<Play>();
         readonly Stack<SpriteRenderer> _pool = new Stack<SpriteRenderer>();
         int _spentThisTick;

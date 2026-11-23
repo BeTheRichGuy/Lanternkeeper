@@ -14,9 +14,14 @@ namespace Lanternkeeper.View
     public sealed class DamageNumbers
     {
         // 1122_numbers_loot.md: a cap on what is up at once, with room kept for the big ones.
-        const int MaxLive = 32, OrdinaryCap = 20, OrderOnTop = 32150; // above the HUD, under the cut-in (32200), fades (32300) and panels
-        sealed class Num { public TextMesh Text, Shadow; public MeshRenderer Mr, ShadowMr; public Vector3 Origin, Drift; public float T, Life, Size, Value, Pop; public Color Color; public bool Big; public int Target; }
+        // 11-23 (review: "후반 화면의 데미지 숫자와 글자 겹침"): late on nearly every hit is a big one and each enemy of a pack
+        // raised its own, so a pack fight printed a slab of digits. Hits landing close together now add into one number
+        // (a pack's blow reads as one total), and fewer are up at once.
+        const int MaxLive = 24, OrdinaryCap = 10, BigCap = 9, OrderOnTop = 32150; // above the HUD, under the cut-in (32200), fades (32300) and panels
+        sealed class Num { public TextMesh Text, Shadow; public MeshRenderer Mr, ShadowMr; public Vector3 Origin, Drift; public float T, Life, Size, Value, Pop; public Color Color; public bool Big, OnHero; public int Target; }
         const float MergeWindow = 0.5f;
+        /// <summary>Hits this close (world units across / up) to a young number add into it, whoever they struck.</summary>
+        const float MergeX = 0.85f, MergeY = 0.55f;
         static readonly Vector3 ShadowOffset = new Vector3(1f / 64f, -1f / 64f, 0f);
 
         readonly Transform _root;
@@ -57,6 +62,7 @@ namespace Lanternkeeper.View
         {
             if (!Enabled) return;
             int heroId = world.Hero.Id;
+            _heroId = heroId;
             float big = world.Hero.Stats.Damage * 3f;
             _baseDamage = Mathf.Max(1f, world.Hero.Stats.Damage);
             SimEvent best = default;
@@ -77,6 +83,8 @@ namespace Lanternkeeper.View
             }
             if (any && best.Value < big && Mode == 0) Spawn(best.Pos, best.Value, new Color(0.78f, 0.75f, 0.7f), false, best.TargetId);
         }
+
+        int _heroId = -1;
 
         TextMesh NewText(string name, int order, out MeshRenderer mr)
         {
@@ -104,10 +112,15 @@ namespace Lanternkeeper.View
 
         void Spawn(Vec2 at, float value, Color color, bool big, int target)
         {
-            // Merge into the number already counting on this target.
+            // Merge into the number already counting on this target - or one just up close by (a pack's blow is one total).
+            // What the hero takes never mixes with what it deals.
+            bool onHero = target == _heroId;
+            var spot = IsoProjection.ToWorld(at) + new Vector3(0f, 0.85f, 0f);
             foreach (var m in _nums)
             {
-                if (m.T >= m.Life || m.Target != target || m.T > MergeWindow) continue;
+                if (m.T >= m.Life || m.T > MergeWindow || m.OnHero != onHero) continue;
+                var gap = m.Origin - spot;
+                if (m.Target != target && (onHero || Mathf.Abs(gap.x) > MergeX || Mathf.Abs(gap.y) > MergeY)) continue;
                 m.Value += value;
                 m.Text.text = m.Shadow.text = Short(m.Value);
                 if (big && !m.Big) { m.Big = true; m.Color = color; m.Life = 0.95f; m.Drift.y = 0.9f; }
@@ -119,9 +132,10 @@ namespace Lanternkeeper.View
                 m.Pop = 0f;
                 return;
             }
-            int live = 0;
-            foreach (var m in _nums) if (m.T < m.Life) live++;
+            int live = 0, liveBig = 0;
+            foreach (var m in _nums) if (m.T < m.Life) { live++; if (m.Big) liveBig++; }
             if (!big && live >= OrdinaryCap) return; // a crowded screen keeps its room for the big ones
+            if (big && !onHero && liveBig >= BigCap) return; // the totals already up carry the fight
             var n = _nums.Find(x => x.T >= x.Life);
             if (n == null)
             {
@@ -132,6 +146,7 @@ namespace Lanternkeeper.View
                 _nums.Add(n);
             }
             n.Target = target;
+            n.OnHero = onHero;
             n.Value = value;
             n.Pop = 0f;
             n.Text.text = n.Shadow.text = Short(value);

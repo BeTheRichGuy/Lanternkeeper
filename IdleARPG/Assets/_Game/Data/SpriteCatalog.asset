@@ -21446,6 +21446,90 @@ MonoBehaviour:
     fps: 16.667
     mirrorMask: 0
     loop: 0
+  - key: vfx/pvfx_status_burning/whole
+    sprites:
+    - {fileID: 21300000, guid: fc45faba21a1f3540816a6a1dc3a0269, type: 3}
+    - {fileID: 21300000, guid: 1c7d91d234646094b9f18f246e319c1a, type: 3}
+    - {fileID: 21300000, guid: c81af6e78928c8d43b63ff387a67e0c1, type: 3}
+    - {fileID: 21300000, guid: 2a7244c2978400e43937e286f0001906, type: 3}
+    - {fileID: 21300000, guid: 4cd7fbc923374e34894c7dff0d6a16f9, type: 3}
+    - {fileID: 21300000, guid: ace6a4bc8754c3a43aa8f7307261952d, type: 3}
+    - {fileID: 21300000, guid: 004d0077b39a2444ebd1122f46394bb9, type: 3}
+    - {fileID: 21300000, guid: 1bdf3156957150e408172c83a8dad601, type: 3}
+    - {fileID: 21300000, guid: bbe699fb4044da8479571e369d6fd092, type: 3}
+    - {fileID: 21300000, guid: b24daf6f4583e0c4e845483e4891c698, type: 3}
+    - {fileID: 21300000, guid: e810bd4e7f503c04e8ce0816d92688a2, type: 3}
+    - {fileID: 21300000, guid: 227d39405e4eb7f4ca764efebfdd0920, type: 3}
+    frames: 12
+    fps: 13.333
+    mirrorMask: 0
+    loop: 1
+  - key: vfx/pvfx_status_frozen/whole
+    sprites:
+    - {fileID: 21300000, guid: a1f9942630debfb4299f4f8cc7ceff1f, type: 3}
+    - {fileID: 21300000, guid: 032fedfcd19fc974ea1e40ac45db9b7c, type: 3}
+    - {fileID: 21300000, guid: 339297cc4c58a264d9986b9499d357ef, type: 3}
+    - {fileID: 21300000, guid: c6fcefb20f0cfa240aeac2f72d07a43a, type: 3}
+    - {fileID: 21300000, guid: 2b8a82fae70bc4943bf282aa2f25d214, type: 3}
+    - {fileID: 21300000, guid: 04f6e2654944ba940bf6e12ea2ad32c2, type: 3}
+    - {fileID: 21300000, guid: cc8741db1afe09944be89ac0d7fdf633, type: 3}
+    - {fileID: 21300000, guid: a327e3d62f93c3442ac0c5f75c6f8746, type: 3}
+    - {fileID: 21300000, guid: 60d7f2f2670c659429c7fd5043e6b5d2, type: 3}
+    - {fileID: 21300000, guid: ea851ea55074e504db36b66d3afd2bab, type: 3}
+    - {fileID: 21300000, guid: 0df53008633826849ba72d17b2106eb8, type: 3}
+    - {fileID: 21300000, guid: 2e4cea0e125c92347bb5b01d59fc0310, type: 3}
+    - {fileID: 21300000, guid: e4e963436d0215f40aa9ec13d88d638d, type: 3}
+    - {fileID: 21300000, guid: 2c1b272502ac796468f008c5510a93a8, type: 3}
+    frames: 14
+    fps: 14.286
+    mirrorMask: 0
+    loop: 1
+  - key: vfx/pvfx_status_poisoned/whole
+    sprites:
+    - {fileID: 21300000, guid: a0a00886edf4865408d5ec80696573a6, type: 3}
+    - {fileID: 21300000, guid: e68e77ab02614364abec50f9a295e855, type: 3}
+    - {fileID: 21300000, guid: 35793bb976a5b7146a461284fbfa586b, type: 3}
+    - {fileID: 21300000, guid: ffb8faaf61f2fdb4ea1ef886855f242e, type: 3}
+    - {fileID: 21300000, guid: 3d6b8a13723f0a2459750b32f5f8753f, type: 3}
+    - {fileID: 21300000, guid: 043b8bd567f347148b985654d9a91652, type: 3}
+    - {fileID: 21300000, guid: 78639bf81fbc0774384f4a45a46aae57, type: 3}
+    - {fileID: 21300000, guid: 6fc1105a28cd7a046985eb096a63d915, type: 3}
+    - {fileID: 21300000, guid: 45a3d26ba54bf88428ffd87fa5043849, type: 3}
+    - {fileID: 21300000, guid: f139b20b6d1bf9a479a40f8356b41da5, type: 3}
+    - {fileID: 21300000, guid: 099328804b2d1c7449a2c3fc8173b04b, type: 3}
+    - {fileID: 21300000, guid: d31b833a416b44843a64988e590cfd0d, type: 3}
+    - {fileID: 21300000, guid: 45b5e89d0e82f834a9fb9dfa41a60404, type: 3}
+    - {fileID: 21300000, guid: 4bac71104adfb1245bfc7cbed7451642, type: 3}
+    - {fileID: 21300000, guid: 632e052591409a24ca848ed916e22223, type: 3}
+    - {fileID: 21300000, guid: 208fbc1d71344c0459433c0f2638f0c3, type: 3}
+    - {fileID: 21300000, guid: 1efc69e6656856b4d8f1046d0df38bc0, type: 3}
+    - {fileID: 21300000, guid: 267ebfe183d6cb744ba21fee0b816b13, type: 3}
+    frames: 18
+    fps: 12.5
+    mirrorMask: 0
+    loop: 1
+  - key: vfx/pvfx_status_stun/whole
+    sprites:
+    - {fileID: 21300000, guid: 71bba837e51bbac4387f8f5d7a066016, type: 3}
+    - {fileID: 21300000, guid: 997b913d9f5212243b5b6e2a201d9c67, type: 3}
+    - {fileID: 21300000, guid: 41855057669dd154897f86fc4b9f3b0e, type: 3}
+    - {fileID: 21300000, guid: be74cb4bab627a742bac9225e04a3fbb, type: 3}
+    - {fileID: 21300000, guid: cf65c72f58fb147488770b3bc84cb085, type: 3}
+    - {fileID: 21300000, guid: fcfa7051671b68b459d920ccd0a2b4f9, type: 3}
+    - {fileID: 21300000, guid: c818aaef13f30784b8caaae045decada, type: 3}
+    - {fileID: 21300000, guid: 7e945ecb0bd673948861a43cf8c953e4, type: 3}
+    - {fileID: 21300000, guid: 64cf65b3c3fd2af4e8573755c7098a36, type: 3}
+    - {fileID: 21300000, guid: 2e75e50109520d9429d9185aae55f1b4, type: 3}
+    - {fileID: 21300000, guid: 7694d80773852e84f88c8ff79ec84ce0, type: 3}
+    - {fileID: 21300000, guid: 77eaf761605ee9b488a7f1102139d35a, type: 3}
+    - {fileID: 21300000, guid: f0059069434cc5f4eb094ec0fe2a49ab, type: 3}
+    - {fileID: 21300000, guid: c8b0149fc77164d40b4fd18c55861820, type: 3}
+    - {fileID: 21300000, guid: e167e56c70ed58347a974d469d6984ce, type: 3}
+    - {fileID: 21300000, guid: daa39355d6bd8d54dace3307571d2cfa, type: 3}
+    frames: 16
+    fps: 13.333
+    mirrorMask: 0
+    loop: 1
   - key: vfx/pvfx_thunderclap/whole
     sprites:
     - {fileID: 21300000, guid: 29227e90da05b994d9ed14f32fdeb942, type: 3}

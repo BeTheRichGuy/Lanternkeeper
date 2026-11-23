@@ -162,6 +162,10 @@ namespace Lanternkeeper.View
             /// <summary>재기획 §4.3 대상 국소 정지: seconds the unit's animation holds on the hit frame, jittering a pixel.</summary>
             public float Freeze;
             public bool Boss;
+            /// <summary>The status worn (PVFX loop: burning, frozen, poisoned, stunned) and how long it has played.</summary>
+            public SpriteRenderer Status;
+            public string StatusId;
+            public float StatusT;
             public string Anim = "idle";
             public float AnimT, AnimSpeed = 1f;
             public bool AnimLoop = true, AnimDone;
@@ -1607,6 +1611,7 @@ namespace Lanternkeeper.View
             var cam = Camera.main;
             if (cam != null) Fog.Update(cam.transform.position, new Vector2(cam.orthographicSize * 2f * cam.aspect, cam.orthographicSize * 2f), Time.time);
 
+            _statusDrawn = 0;
             DrawUnit(_world.Hero, false, heroPos, dt, heroPos);
             Afterimages(dt);
             foreach (var e in _world.Enemies)
@@ -1667,6 +1672,46 @@ namespace Lanternkeeper.View
                 _ghosts[i] = (sr, t);
             }
         }
+
+        /// <summary>
+        /// A status shows on the enemy wearing it (희승 11-23: free VFX "우리 게임에 맞게"): PVFX Foundry's loops (CC0) -
+        /// flames round the feet while it burns, ice at the feet while frozen, slime while poisoned, stars over the head
+        /// while stunned. One per enemy (frozen, burning, poisoned, stunned in that order), at most 24 a frame.
+        /// </summary>
+        void DrawStatus(Unit u, UnitView v, float dt)
+        {
+            string id = null;
+            if (u is Enemy e && e.Alive && v.Fade > 0.99f && _statusDrawn < 24)
+            {
+                double now = _world.Time;
+                id = e.FreezeUntil > now ? "pvfx_status_frozen" : e.BurnTicks > 0 ? "pvfx_status_burning"
+                    : e.DotTicks > 0 ? "pvfx_status_poisoned" : e.StunUntil > now ? "pvfx_status_stun" : null;
+            }
+            if (id == null || !_catalog.TryGetClip($"vfx/{id}/whole", out var frames, out float fps, out _))
+            {
+                if (v.Status != null) v.Status.enabled = false;
+                v.StatusId = null;
+                return;
+            }
+            _statusDrawn++;
+            if (v.Status == null)
+            {
+                v.Status = new GameObject("status").AddComponent<SpriteRenderer>();
+                v.Status.transform.SetParent(v.Sr.transform, false);
+                v.Status.sharedMaterial = Vfx.Material;
+            }
+            if (v.StatusId != id) { v.StatusId = id; v.StatusT = Random.value; } // packs do not burn in lockstep
+            v.StatusT += dt;
+            v.Status.enabled = true;
+            v.Status.sprite = frames[(int)(v.StatusT * fps) % frames.Length];
+            // Feet for the auras; the stars ride over the head (the sprite's top in its own space).
+            bool overHead = id == "pvfx_status_stun";
+            v.Status.transform.localPosition = overHead && v.Sr.sprite != null ? new Vector3(0f, v.Sr.sprite.bounds.max.y + 0.05f, 0f) : Vector3.zero;
+            v.Status.sortingOrder = v.Sr.sortingOrder + 1;
+            v.Status.color = new Color(1f, 1f, 1f, 0.9f * GameSettings.FxAlpha);
+        }
+
+        int _statusDrawn;
 
         void DrawUnit(Unit u, bool boss, Vec2 pos, float dt, Vec2 heroPos)
         {
@@ -1734,6 +1779,7 @@ namespace Lanternkeeper.View
             v.Sr.sortingOrder = IsoProjection.SortOrder(world, 10 + (u.Id & 3)); // id tie-break: no flicker on equal rows
             v.Shadow.sortingOrder = FloorOrder + 50;
             v.Shadow.transform.position = world;
+            DrawStatus(u, v, dt);
 
             var c = v.Tint;
             // Figure/ground (act-visual-direction §1): actors are unlit and get only a neutral lantern falloff, so the floor's
