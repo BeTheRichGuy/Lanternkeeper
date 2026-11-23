@@ -26,7 +26,7 @@ namespace Lanternkeeper.Sim
             int idx = Bag.Items.FindIndex(i => i.Uid == uid);
             if (idx < 0) return false;
             var item = Bag.Items[idx];
-            if (item.ReqLevel > Hero.IntegratedLevel) return false;
+            if (item.ReqLevel > Hero.IntegratedLevel || !HeroStats.FitsClass(item, Hero.ClassId)) return false;
             var old = Hero.Gear.Equip(item, SpotFor(item));
             AutoEquipDeclined.Remove(uid); // worn by hand: no longer set aside
             Bag.Items.RemoveAt(idx);
@@ -116,8 +116,11 @@ namespace Lanternkeeper.Sim
             return true;
         }
 
-        /// <summary>What 일괄 분해 takes: not locked, below legendary, no ★ line.</summary>
-        public static bool BulkSalvageable(Item it) => !it.Locked && it.Rarity < Rarity.Legendary && it.GreaterCount == 0;
+        /// <summary>
+        /// What 일괄 분해 takes: not locked, and below legendary with no ★ line — or any piece this class can never wear
+        /// (11-24: an older save's bag held a dozen of another class's uniques).
+        /// </summary>
+        public bool BulkSalvageable(Item it) => !it.Locked && ((it.Rarity < Rarity.Legendary && it.GreaterCount == 0) || !HeroStats.FitsClass(it, Hero.ClassId));
 
         /// <summary>How many of each rarity (index = <see cref="Rarity"/>) 일괄 분해 would take; read-only, for its confirm box.</summary>
         public int[] BulkSalvageCounts()

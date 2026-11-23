@@ -243,8 +243,25 @@ namespace Lanternkeeper.Sim
                 Survival = Ehp(ScratchStats, ScratchDerived) / Ehp(BaseStats, BaseDerived),
                 Essences = ScratchDerived.Essences.Count - BaseDerived.Essences.Count,
             };
-            c.Arrow = item.ReqLevel > h.IntegratedLevel ? GearArrow.Locked : ArrowOf(c.Power, c.Offence, c.Survival);
+            c.Arrow = item.ReqLevel > h.IntegratedLevel || !FitsClass(item, h.ClassId) ? GearArrow.Locked : ArrowOf(c.Power, c.Offence, c.Survival);
             return c;
+        }
+
+        /// <summary>
+        /// Whether this class may wear <paramref name="item"/>: a unique by its own class (11-24 UniqueDef), anything else by
+        /// its base. Drops are rolled for the hero's class, but a save from before then holds other classes' uniques
+        /// (11-24: a 별점술사 had auto-equipped the 잿불기사's 묘지기의 맹세).
+        /// </summary>
+        public static bool FitsClass(Item item, string classId)
+        {
+            if (item == null) return false;
+            if (item.Rarity == Rarity.Unique && !string.IsNullOrEmpty(item.UniqueId))
+            {
+                var u = ItemData.Unique(item.UniqueId);
+                if (u != null) return u.Fits(classId);
+            }
+            var b = ItemData.Base(item.BaseId);
+            return b == null || b.Fits(classId);
         }
 
         /// <summary>Against the spot a click would use: an empty one of its kind first, else (two rings) the one it improves most.</summary>

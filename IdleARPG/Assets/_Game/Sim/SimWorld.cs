@@ -314,11 +314,14 @@ namespace Lanternkeeper.Sim
             h.DeepestActCleared = Math.Max(s.DeepestActCleared, s.FloorIndex / ActLength - 1);
             // Drop items whose base no longer exists (renamed tables) instead of crashing later.
             int maxUid = 0;
+            var offClass = new List<Item>();
             foreach (var e in s.Equipped)
                 if (e?.Item != null && e.Spot >= 0 && e.Spot < h.Gear.Spots.Length && ItemData.HasBase(e.Item.BaseId))
                 {
                     ItemGen.AdoptForClass(e.Item, h.ClassId); // gear from before class bases becomes this class's
                     ItemGen.AdoptUnique(e.Item); // a unique from before 11-24 gets its id and its own power
+                    // Another class's unique worn from an older save comes off into the bag (it can't be worn now).
+                    if (!HeroStats.FitsClass(e.Item, h.ClassId)) { offClass.Add(e.Item); maxUid = Math.Max(maxUid, e.Item.Uid); continue; }
                     h.Gear.Spots[e.Spot] = e.Item;
                     maxUid = Math.Max(maxUid, e.Item.Uid);
                 }
@@ -331,6 +334,7 @@ namespace Lanternkeeper.Sim
             w.Bag.Items.Clear();
             foreach (var it in s.Bag)
                 if (it != null && ItemData.HasBase(it.BaseId)) { ItemGen.AdoptForClass(it, h.ClassId); ItemGen.AdoptUnique(it); w.Bag.Items.Add(it); maxUid = Math.Max(maxUid, it.Uid); }
+            w.Bag.Items.AddRange(offClass); // taken off above; Trim below keeps the bag at forty
             w.NextItemUid = Math.Max(Math.Max(1, s.NextItemUid), maxUid + 1); // never reuse a uid
             w._dropsTotal = 0;
             w.Bag.AshShards = s.AshShards;

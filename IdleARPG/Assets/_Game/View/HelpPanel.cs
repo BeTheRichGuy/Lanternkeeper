@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using Lanternkeeper.Sim;
 using UnityEngine;
@@ -20,8 +21,12 @@ namespace Lanternkeeper.View
         readonly Text _left, _right, _pageLabel;
         readonly Button[] _tabs = new Button[3];
         readonly Button _prev, _next;
-        int _tab, _page;
+        int _tab, _page, _section;
         const int TermsPerPage = 14;
+        readonly Image _rule;
+        readonly Text _body;
+        readonly string[] _sections;
+        readonly System.Collections.Generic.List<Button> _sectionButtons = new System.Collections.Generic.List<Button>();
 
         const string Keys =
             "<color=#ffd38a>전투·진행</color>\n" +
@@ -68,7 +73,23 @@ namespace Lanternkeeper.View
             _left = UiKit.Label(_win, "", 20f, 70f, W / 2f - 30f, H - 110f, 12, TextAnchor.UpperLeft, UiKit.Ink);
             _right = UiKit.Label(_win, "", W / 2f + 10f, 70f, W / 2f - 30f, H - 110f, 12, TextAnchor.UpperLeft, UiKit.Ink);
             _left.lineSpacing = _right.lineSpacing = 1.2f;
-            UiKit.Fill(_win, "rule", W / 2f - 1f, 72f, 1f, H - 120f, UiKit.Line);
+            _rule = UiKit.Fill(_win, "rule", W / 2f - 1f, 72f, 1f, H - 120f, UiKit.Line);
+            // 게임 방법 as a list and one page (critique 6 #10: two dense columns): the sections down the left, the one
+            // picked on the right in larger type.
+            var all = HowLeft() + "\n\n" + HowRight();
+            _sections = all.Split(new[] { "<color=#ffd38a>" }, StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < _sections.Length; i++)
+            {
+                int idx = i;
+                string head = _sections[i].Substring(0, Math.Max(0, _sections[i].IndexOf("</color>", StringComparison.Ordinal)));
+                var b = ui.Button(_win, head, 20f, 74f + i * 34f, 250f, 28f, () => { _section = idx; Rebuild(); });
+                var bt = b.GetComponentInChildren<Text>();
+                bt.alignment = TextAnchor.MiddleLeft;
+                bt.rectTransform.offsetMin = new Vector2(12f, bt.rectTransform.offsetMin.y);
+                _sectionButtons.Add(b);
+            }
+            _body = UiKit.Label(_win, "", 300f, 78f, W - 330f, H - 120f, 14, TextAnchor.UpperLeft, UiKit.Ink);
+            _body.lineSpacing = 1.35f;
             _prev = ui.Button(_win, "◀ 이전", W - 300f, H - 34f, 90f, 20f, () => { _page--; Rebuild(); });
             _next = ui.Button(_win, "다음 ▶", W - 110f, H - 34f, 90f, 20f, () => { _page++; Rebuild(); });
             _pageLabel = UiKit.Label(_win, "", W - 205f, H - 31f, 90f, 16f, 12, TextAnchor.UpperCenter, UiKit.Dim);
@@ -98,9 +119,23 @@ namespace Lanternkeeper.View
             _prev.gameObject.SetActive(paged);
             _next.gameObject.SetActive(paged);
             _pageLabel.text = paged ? (_page + 1) + " / " + pages : "";
+            bool how = _tab == 0;
+            _left.gameObject.SetActive(!how);
+            _right.gameObject.SetActive(!how);
+            _rule.gameObject.SetActive(!how);
+            _body.gameObject.SetActive(how);
+            for (int i = 0; i < _sectionButtons.Count; i++)
+            {
+                _sectionButtons[i].gameObject.SetActive(how);
+                _sectionButtons[i].GetComponentInChildren<Text>().color = i == _section ? UiKit.Gold : UiKit.Dim;
+            }
             switch (_tab)
             {
-                case 0: _left.text = HowLeft(); _right.text = HowRight(); break;
+                case 0:
+                    var sec = _sections[Mathf.Clamp(_section, 0, _sections.Length - 1)];
+                    int cut = sec.IndexOf("</color>", StringComparison.Ordinal);
+                    _body.text = "<color=#ffd38a>" + sec.Substring(0, cut) + "</color>\n\n" + sec.Substring(cut + 8).Trim();
+                    break;
                 case 1: Glossary(); break;
                 default: _left.text = Keys; _right.text = Keys2 + "\n\n<color=#8a8178>H   도움말 닫기</color>"; break;
             }
@@ -114,7 +149,7 @@ namespace Lanternkeeper.View
               .Append("화면 위 '다음:' 줄이 지금 노릴 목표입니다.\n\n");
             sb.Append("<color=#ffd38a>2  장비 색과 화살표</color>\n")
               .Append("<color=#c8c8c0>일반</color> < <color=#6fa0ff>마법</color> < <color=#ffe45c>희귀</color> < <color=#ff8c26>전설</color> < <color=#e0bc74>고유</color>   위로 갈수록 드물고 옵션이 많습니다.\n")
-              .Append("내게 더 좋은지는 색이 아니라 화살표가 알려 줍니다:\n<color=#5bd66b>▲</color> 더 강함 · <color=#ff5a4d>▼</color> 더 약함 ·\n<color=#8a8178>═</color> 비슷함 · <color=#ffd24d>⇄</color> 공격과 생존을 맞바꿈.\n")
+              .Append("내게 더 좋은지는 색이 아니라 칸 귀퉁이 표시가 알려 줍니다:\n<color=#5bd66b>▲</color> 더 강함 · <color=#ffd24d>⇄</color> 공격과 생존을 맞바꿈 · 표시 없음은 약하거나 비슷함.\n")
               .Append("더 좋은 장비(▲)는 자동으로 낍니다.\n\n");
             sb.Append("<color=#ffd38a>3  스킬 순서와 공명</color>\n")
               .Append("스킬은 칸 순서대로 돌아가며 나갑니다. 원소 스킬은 맞은 적에게 <color=#cfe6ff>각인</color>을 남기고,\n")

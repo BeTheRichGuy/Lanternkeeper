@@ -9,7 +9,8 @@ namespace Lanternkeeper.Tests
     {
         static Item Make(SimWorld w, Rarity r, Slot slot, int ilvl = 5)
         {
-            var it = ItemGen.Roll(new SimRng((ulong)(w.NextItemUid * 977 + 13)), w.NextItemUid++, ilvl, r, slot, 0f);
+            // The world's own class (11-24: another class's piece can't be worn any more).
+            var it = ItemGen.Roll(new SimRng((ulong)(w.NextItemUid * 977 + 13)), w.NextItemUid++, ilvl, r, slot, 0f, w.Hero.ClassId);
             it.ReqLevel = 1;
             return it;
         }

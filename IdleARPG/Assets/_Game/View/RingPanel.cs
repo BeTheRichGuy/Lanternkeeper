@@ -56,10 +56,9 @@ namespace Lanternkeeper.View
         {
             get
             {
-                var g = _world.Hero.Ring.Sigils[_slot];
-                return g != Sigil.None
-                    ? "<color=#a8c4ff>◈ " + GameText.Sigil(g) + "</color>"
-                    : "<color=#8a8178>아이콘에 마우스를 올리면 이름과 설명이 여기 나옵니다 · 귀퉁이 숫자는 놓인 칸 번호</color>";
+                // Critique 5: the slot's glyph sentence stood here and again on the card above it. The card keeps it; this
+                // line is for what the pointer is on.
+                return "<color=#8a8178>아이콘에 마우스를 올리면 설명이 여기 나옵니다 · 귀퉁이 숫자는 놓인 칸 번호</color>";
             }
         }
         readonly List<Button> _presets = new List<Button>();
@@ -129,7 +128,7 @@ namespace Lanternkeeper.View
                 _sigils[i] = ui.Sprite(_place, "icon/sigil_chain", p.x + SlotSize - 10f, p.y - 6f, 16f, 16f);
                 _barBack[i] = UiKit.Fill(_place, "bar", p.x, p.y + SlotSize + 2f, SlotSize, 2f, new Color(0f, 0f, 0f, 0.6f));
                 _barFill[i] = UiKit.Fill(_place, "bar fill", p.x, p.y + SlotSize + 2f, 0f, 2f, new Color(0.66f, 0.82f, 1f, 0.9f));
-                _levels[i] = UiKit.Label(_place, "", p.x - 48f, p.y + SlotSize + 5f, SlotSize + 96f, 30f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.82f, 1f));
+                _levels[i] = UiKit.Label(_place, "", p.x - 48f, p.y + SlotSize + 8f, SlotSize + 96f, 30f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.82f, 1f)); // clear of the practice bar (critique 7 P0)
             }
 
             // ---------- detail ----------
@@ -147,12 +146,20 @@ namespace Lanternkeeper.View
             _detailBarFill = UiKit.Fill(_place, "bar fill", dx, 118f, 0f, 3f, new Color(0.66f, 0.82f, 1f, 0.95f));
 
             // ---------- pickers ----------
-            _skillLabel = UiKit.Label(_place, "", dx, 252f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            // Critique 6: the skill row and the 21 glyphs stood under the card at once. A switch shows one picker at a time.
+            for (int k = 0; k < 2; k++)
+            {
+                int kind = k;
+                var b = ui.Button(_place, k == 0 ? "스킬 바꾸기" : "보조 문양", dx + k * 124f, 258f, 120f, 22f, () => ShowPicker(kind == 1));
+                _pickText[k] = b.GetComponentInChildren<Text>();
+                _pickBar[k] = UiKit.Fill(_place, "pick bar", dx + k * 124f, 278f, 120f, 2f, UiKit.Gold);
+            }
+            _skillLabel = UiKit.Label(_place, "", dx, 290f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             // Every icon carries its name underneath (loop 2 P0: 31 nameless icons; "확산" could not be found).
-            _skillGrid = UiKit.Rect(_place, "skills", dx, 268f, dw, 60f);
-            _preview = UiKit.Label(_place, "", dx, 330f, dw, 30f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-            _sigilLabel = UiKit.Label(_place, "", dx, 362f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            _sigilGrid = UiKit.Rect(_place, "sigils", dx, 378f, dw, 96f);
+            _skillGrid = UiKit.Rect(_place, "skills", dx, 306f, dw, 60f);
+            _preview = UiKit.Label(_place, "", dx, 412f, dw, 30f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _sigilLabel = UiKit.Label(_place, "", dx, 290f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _sigilGrid = UiKit.Rect(_place, "sigils", dx, 306f, dw, 96f);
             for (int i = 0; i < AllSigils.Length; i++)
             {
                 var g = AllSigils[i];
@@ -179,7 +186,19 @@ namespace Lanternkeeper.View
             for (int i = 0; i < presets.Length; i++)
             {
                 int idx = i;
-                _presets.Add(ui.Button(_presetTab, presets[i].Name, 40f + (i % 2) * (bw + 12f), 74f + (i / 2) * 34f, bw, 28f, () => { _world.SetPreset(idx); Changed(); }));
+                var pb = ui.Button(_presetTab, presets[i].Name, 40f + (i % 2) * (bw + 12f), 74f + (i / 2) * 34f, bw, 28f, () => { _world.SetPreset(idx); Changed(); });
+                // Critique 6 #9: each set shows its four skills, the name after them (left-aligned).
+                var ring = presets[i].Ring;
+                for (int k = 0; k < 4 && ring != null && k < ring.Length; k++)
+                {
+                    string key = "icon/skill_" + ring[k];
+                    var ic = ui.Sprite(pb.transform, ui.Catalog.Has(key) ? key : "ui/dot", 6f + k * 24f, 3f, 22f, 22f);
+                    ic.raycastTarget = false;
+                }
+                var pt = pb.GetComponentInChildren<Text>();
+                pt.alignment = TextAnchor.MiddleLeft;
+                pt.rectTransform.offsetMin = new Vector2(112f, pt.rectTransform.offsetMin.y);
+                _presets.Add(pb);
             }
             float py = 74f + ((presets.Length + 1) / 2) * 34f + 18f;
             UiKit.Fill(_presetTab, "rule", 40f, py - 8f, W - 80f, 1f, UiKit.Line);
@@ -197,6 +216,7 @@ namespace Lanternkeeper.View
             var tb = _trial.gameObject.AddComponent<Image>();
             tb.color = new Color(0.04f, 0.035f, 0.05f, 1f);
             _trial.gameObject.SetActive(false);
+            ShowPicker(false);
             ShowTab(0);
             SetVisible(false);
         }
@@ -207,6 +227,20 @@ namespace Lanternkeeper.View
         readonly Image[] _tabBar = new Image[3];
         readonly Text _resHint;
         int _tab;
+
+        readonly Text[] _pickText = new Text[2];
+        readonly Image[] _pickBar = new Image[2];
+        bool _pickSigil;
+
+        void ShowPicker(bool sigil)
+        {
+            _pickSigil = sigil;
+            _skillLabel.gameObject.SetActive(!sigil);
+            _skillGrid.gameObject.SetActive(!sigil);
+            _sigilLabel.gameObject.SetActive(sigil);
+            _sigilGrid.gameObject.SetActive(sigil);
+            for (int i = 0; i < 2; i++) { _pickText[i].color = (i == 1) == sigil ? UiKit.Gold : UiKit.Dim; _pickBar[i].enabled = (i == 1) == sigil; }
+        }
 
         void ShowTab(int t)
         {
@@ -395,7 +429,11 @@ namespace Lanternkeeper.View
             }
 
             _resTable.text = ResonanceTable(ring, open);
-            _resHint.text = ResonanceHint(ring, open);
+            // With a recommended set in use, no advice to break it (critique 7 P0): the set's name and what it sets off.
+            var hint = ResonanceHint(ring, open);
+            bool firing = hint.StartsWith("지금 공명 <color=#ffcf5a>", StringComparison.Ordinal);
+            _resHint.text = h.UseCustomRing ? hint
+                : "<color=#8a8178>추천 배치 「" + SkillBook.PresetsFor(h.ClassId)[h.Preset].Name + "」 사용 중</color>" + (firing ? "\n" + hint : "");
 
             // Detail of the chosen slot.
             var sel = _slot < open ? ring.Slots[_slot] : null;
@@ -452,11 +490,16 @@ namespace Lanternkeeper.View
             _skillLabel.text = "이 칸에 배치할 스킬" + (sel != null ? "  <color=#f2e6cf>· 지금: " + sel.Name + "</color>" : "");
             if (_hoverPreview == 0) _preview.text = PreviewIdle; // follows the slot and glyph picked
             _sigilLabel.text = sigilsOpen ? "보조 문양 (이 칸과 다음 칸에 적용)" + (chosen != Sigil.None ? "  <color=#a8c4ff>· 지금: " + SkillCard.Head(GameText.Sigil(chosen)) + "</color>" : "") : "보조 문양 · 통합 레벨 " + SkillBook.SigilLevel + "에서 개방";
-            _sigilGrid.gameObject.SetActive(sigilsOpen);
+            _sigilGrid.gameObject.SetActive(sigilsOpen && _pickSigil); // shown under its own switch (critique 6)
             for (int i = 0; i < _sigilCells.Count; i++)
                 _sigilCells[i].frame.color = AllSigils[i] == ring.Sigils[_slot] ? new Color(0.2f, 0.25f, 0.4f, 0.95f) : new Color(0.08f, 0.07f, 0.07f, 0.95f);
             for (int i = 0; i < _presets.Count; i++)
-                _presets[i].GetComponentInChildren<Text>().color = !h.UseCustomRing && h.Preset == i ? UiKit.Gold : UiKit.Dim;
+            {
+                bool inUse = !h.UseCustomRing && h.Preset == i;
+                var pl = _presets[i].GetComponentInChildren<Text>();
+                pl.color = inUse ? UiKit.Gold : UiKit.Dim;
+                pl.text = SkillBook.PresetsFor(h.ClassId)[i].Name + (inUse ? "   <color=#9fd28a>사용 중</color>" : "");
+            }
         }
 
         void AddSkillCell()
@@ -616,7 +659,7 @@ namespace Lanternkeeper.View
                 tip.rectTransform.pivot = new Vector2(0.5f, 0.5f);
                 tip.rectTransform.anchoredPosition = new Vector2(to.x, -to.y);
                 tip.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg);
-                var mid = (a + b) / 2f + new Vector2(-d.y, d.x) * -18f; // the resonance's name just outside the arrow
+                var mid = (a + b) / 2f + new Vector2(-d.y, d.x) * -30f; // the resonance's name clear outside the arrow (critique 6 P0)
                 UiKit.Label(_resTab, "<color=#ffcf5a>" + FxView.ResonanceName(Elements.Forward(Cycle[i].mark)) + "</color>", mid.x - 40f, mid.y - 8f, 80f, 16f, 12, TextAnchor.MiddleCenter, UiKit.Ink);
                 var disc = UiKit.Fill(_resTab, "element", a.x - 26f, a.y - 26f, 52f, 52f, new Color(0.08f, 0.07f, 0.07f, 0.95f));
                 disc.sprite = UiKit.Disc(ui, 52, 0);

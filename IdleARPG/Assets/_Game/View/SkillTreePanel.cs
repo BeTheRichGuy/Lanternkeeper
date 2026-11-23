@@ -8,47 +8,52 @@ using UnityEngine.UI;
 namespace Lanternkeeper.View
 {
     /// <summary>
-    /// The skill tree laid out as Diablo II's (희승 11-22; the rules of 기억의 나무 are unchanged): one tab per branch;
-    /// in a tab the branch's skills stand in rows from top to bottom, each row with its required level on the left and
-    /// its two 변형 and its evolution to the right, a line linking each skill to the next; on the right the two ultimates,
-    /// the branch's three keystones and its 갈래 강화. Taken nodes light in the branch colour, takeable ones
-    /// breathe, locked ones stay dark. Hover explains a node; click takes it (자동 분배 goes off). Top: points, 자동 분배,
-    /// reset. Right: the card and the ring in use. T toggles it.
+    /// The skill tree (희승 11-24: "한 탭에서는 하나의 기능만"). Four tabs under the title: one per branch, each only
+    /// that branch's skill rows (skill, its two 변형, its evolution, the name beside the skill), and 「특성」 with the
+    /// ultimate choice, the keystones and the 갈래 강화. Owned nodes are bright with a gold halo, takeable ones carry a
+    /// "+" and breathe, locked ones stand at 60 % with a lock. The card on the right shows the node pointed at, else the
+    /// one last clicked, else the tab's first takeable (or owned) node; the legend waits behind "?". Top bar: points,
+    /// 자동 분배, reset. T toggles it.
     /// </summary>
     public sealed class SkillTreePanel
     {
-        const float W = 880f, H = 500f, TreeW = 600f;
+        const float W = 880f, H = 500f, TreeW = 596f, CardX = 608f, CardW = W - CardX - 12f;
+        const float BodyTop = 60f, BodyBottom = H - 32f; // under the tab rule; the status line sits below
+        const int TraitTab = 3;
         readonly UiKit _ui;
         readonly SimWorld _world;
         readonly RectTransform _win, _treeLayer;
-        readonly Text _title, _points, _autoLabel, _cardName, _cardBody;
-        // Labels Refresh rewrites (loop 1 P1-13): a row's name follows its evolution, the heads count what is taken.
-        readonly List<(Text label, string skillId)> _rowNames = new List<(Text, string)>();
-        readonly Text[] _passiveHeads = new Text[3];
-        Text _ultHead;
+        readonly Text _title, _points, _autoLabel, _cardName, _cardBody, _footer;
+        readonly Image _cardIcon, _cardWell;
+        readonly GameObject _legend;
+        // Labels Refresh rewrites: a row's name follows its evolution, its second line says what the skill needs.
+        readonly List<(Text name, Text status, TreeNode node)> _rowNames = new List<(Text, Text, TreeNode)>();
+        readonly Text[] _branchPoints = new Text[3], _passiveCount = new Text[3];
         Text _resetLabel;
         float _resetAskedAt = -10f;
-        readonly Image _cardIcon, _cardFrame;
-        readonly Image[] _ringIcons = new Image[4];
         public bool Visible { get; private set; }
 
         sealed class NodeView
         {
             public TreeNode Node;
             public Image Frame, Icon, Glow;
-            public Text Mark;
-            public GameObject Holder;
+            public Text Mark, Plus;
+            public GameObject Holder, Lock;
+            public float Size;
         }
 
         readonly List<NodeView> _nodes = new List<NodeView>();
+        readonly Dictionary<TreeNode, NodeView> _viewOf = new Dictionary<TreeNode, NodeView>();
         readonly List<(TreeNode child, Image line)> _edges = new List<(TreeNode, Image)>();
         string _classId;
         int _stamp = -1;
-        TreeNode _hovered;
+        TreeNode _hovered, _selected;
         readonly Color[] _branchColor = new Color[3];
         readonly Dictionary<string, Vector2> _pos = new Dictionary<string, Vector2>();
-        readonly Button[] _tabs = new Button[3];
-        readonly List<GameObject> _rowBits = new List<GameObject>();
+        readonly Text[] _tabText = new Text[4];
+        readonly Image[] _tabBar = new Image[4];
+        readonly RectTransform[] _tabRoots = new RectTransform[4];
+        Image _selRing;
         int _tab;
 
         public SkillTreePanel(UiKit ui, SimWorld world)
@@ -56,15 +61,22 @@ namespace Lanternkeeper.View
             _ui = ui;
             _world = world;
             _win = ui.Window("Skill Tree", W, H, "스킬 트리", Toggle, out _title);
-            UiKit.Fill(_win, "tree back", 8f, 30f, TreeW - 8f, H - 38f, new Color(0f, 0f, 0f, 0.35f));
-            _treeLayer = UiKit.Rect(_win, "tree", 0f, 0f, TreeW, H);
 
-            // Top bar: points, auto growth, reset.
-            _points = UiKit.Label(_win, "", 16f, 34f, 300f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold);
-            var auto = ui.Button(_win, "", 330f, 32f, 140f, 18f, () => { _world.SetTreeAuto(!_world.Hero.TreeAuto); Changed(); });
+            // ---------- top bar: the four tabs left, points · 자동 분배 · 초기화 right (as RingPanel's tab row) ----------
+            for (int t = 0; t < 4; t++)
+            {
+                int tab = t;
+                var btn = ui.Button(_win, t == TraitTab ? "특성" : "", 16f + t * 108f, 32f, 104f, 22f, () => ShowTab(tab));
+                _tabText[t] = btn.GetComponentInChildren<Text>();
+                _tabBar[t] = UiKit.Fill(_win, "tab bar", 16f + t * 108f, 52f, 104f, 3f, UiKit.Gold);
+            }
+            UiKit.Fill(_win, "tab rule", 12f, 54f, W - 24f, 1f, UiKit.Line);
+            _points = UiKit.Label(_win, "", 452f, 36f, 214f, 14f, 12, TextAnchor.UpperRight, UiKit.Gold);
+            _points.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var auto = ui.Button(_win, "", 676f, 33f, 116f, 19f, () => { _world.SetTreeAuto(!_world.Hero.TreeAuto); Changed(); });
             _autoLabel = auto.GetComponentInChildren<Text>();
             // UX plan B6③: a reset is undone by nothing - the first click asks, a second within 3 s does it.
-            var reset = ui.Button(_win, "초기화", 476f, 32f, 70f, 18f, null);
+            var reset = ui.Button(_win, "초기화", 798f, 33f, 66f, 19f, null);
             var resetLabel = reset.GetComponentInChildren<Text>();
             reset.onClick.AddListener(() =>
             {
@@ -73,31 +85,34 @@ namespace Lanternkeeper.View
                 if (resetLabel != null) resetLabel.text = "<color=#ff8a70>정말?</color>";
             });
             _resetLabel = resetLabel;
-            // one tab per branch, as Diablo II's three skill tabs
-            for (int b = 0; b < 3; b++)
-            {
-                int tab = b;
-                _tabs[b] = ui.Button(_win, "", 16f + b * 194f, 56f, 188f, 22f, () => { _tab = tab; ShowTab(); });
-            }
 
-            // Detail card (right).
-            const float cx = TreeW + 12f, cw = W - cx - 14f;
-            UiKit.Fill(_win, "card", cx - 4f, 32f, cw + 8f, 300f, new Color(1f, 0.85f, 0.6f, 0.05f));
-            _cardFrame = ui.Sprite(_win, "ui/ui_slot_rare", cx, 40f, 72f, 72f);
-            _cardFrame.preserveAspect = false;
-            _cardIcon = ui.Sprite(_win, "icon/item_rune", cx + 4f, 44f, 64f, 64f);
-            _cardName = UiKit.Label(_win, "", cx + 80f, 42f, cw - 80f, 40f, 12, TextAnchor.UpperLeft, UiKit.Gold);
-            _cardBody = UiKit.Label(_win, "", cx, 120f, cw, 200f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            UiKit.Fill(_win, "tree back", 8f, BodyTop, TreeW - 8f, BodyBottom - BodyTop, new Color(0f, 0f, 0f, 0.35f));
+            _treeLayer = UiKit.Rect(_win, "tree", 0f, 0f, TreeW, H);
+            // One line under the tree: what the player can do here now (critique 6: "자동 분배: 켬" and 0 points said nothing).
+            _footer = UiKit.Label(_win, "", 16f, H - 25f, TreeW - 24f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+
+            // ---------- card (right): the node pointed at, on the same burnt parchment as the skill-placement card ----------
+            var paper = ui.Sprite(_win, "ui/ui2_parchment", CardX, BodyTop, CardW, BodyBottom - BodyTop, sliced: true);
+            paper.preserveAspect = false;
+            paper.color = new Color(0.42f, 0.36f, 0.32f, 1f);
+            _cardWell = UiKit.Fill(_win, "icon well", CardX + 12f, 72f, 72f, 72f, new Color(0.05f, 0.04f, 0.04f, 0.85f));
+            _cardIcon = ui.Sprite(_win, "icon/item_rune", CardX + 16f, 76f, 64f, 64f);
+            _cardName = UiKit.Label(_win, "", CardX + 94f, 74f, CardW - 94f - 30f, 40f, 14, TextAnchor.UpperLeft, UiKit.Gold, title: true);
+            _cardBody = UiKit.Label(_win, "", CardX + 12f, 156f, CardW - 24f, 290f, 12, TextAnchor.UpperLeft, UiKit.Ink);
             _cardBody.lineSpacing = 1.12f;
 
-            // The ring in use.
-            UiKit.Label(_win, "현재 스킬 배치", cx, H - 92f, cw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            for (int i = 0; i < 4; i++)
-            {
-                var f = ui.Sprite(_win, "ui/ui_slot_common", cx + i * 58f, H - 76f, 52f, 52f);
-                f.preserveAspect = false;
-                _ringIcons[i] = ui.Sprite(_win, "icon/item_rune", cx + i * 58f + 10f, H - 66f, 32f, 32f);
-            }
+            // The legend behind "?" (critique 6 P2: it sat inside the card, mixed with the description).
+            var help = ui.Button(_win, "?", CardX + CardW - 28f, 66f, 20f, 18f, null);
+            var legend = UiKit.Rect(_win, "legend", CardX + 8f, BodyBottom - 128f, CardW - 16f, 120f);
+            var lb = legend.gameObject.AddComponent<Image>();
+            lb.color = new Color(0.04f, 0.035f, 0.05f, 0.97f);
+            lb.raycastTarget = false;
+            UiKit.Fill(legend, "edge", 0f, 0f, CardW - 16f, 1f, UiKit.Line);
+            UiKit.Label(legend, "<color=#ffcf5a>금빛으로 빛나는 칸</color>  배운 칸\n<color=#9fd28a>+</color> 붙은 칸  지금 배울 수 있음 (클릭)\n<color=#8a8178>어둡고 자물쇠</color>  아직 잠김\n큰 원 스킬 · 마름모 변형 · 가시 원 진화\n<color=#8a8178>진화는 그 스킬 숙련 " + SkillTree.EvoMastery + "부터</color>",
+                10f, 8f, CardW - 36f, 104f, 12, TextAnchor.UpperLeft, UiKit.Ink).lineSpacing = 1.15f;
+            _legend = legend.gameObject;
+            _legend.SetActive(false);
+            help.onClick.AddListener(() => _legend.SetActive(!_legend.activeSelf));
             SetVisible(false);
         }
 
@@ -124,14 +139,30 @@ namespace Lanternkeeper.View
 
         Vector2 Pos(TreeNode n) => _pos.TryGetValue(n.Id, out var p) ? p : new Vector2(-1000f, -1000f);
 
-        const float RowTop = 112f, RowH = 54f, SkillX = 92f, ModX = 152f, EvoX = 214f;
+        // Branch tabs: rows of skill · name · two 변형 · evolution. 특성 tab: ultimates on top, a row per branch below.
+        const float RowsTop = 84f, SkillX = 60f, NameX = 96f, Mod0X = 334f, Mod1X = 400f, EvoX = 484f;
+        const float UltY = 118f, TraitTop = 236f, TraitH = 78f, KeyX = 172f, KeyStep = 72f, PassiveX = 372f, PassiveStep = 44f;
+        static readonly Color Plate = new Color(1f, 0.85f, 0.6f, 0.012f); // a row's faint plate (0.035 read as an olive box)
 
-        /// <summary>Where each node of a branch stands in its tab (centres, UI px from the window's top-left).</summary>
+        static bool InTab(TreeNode n, int tab) => tab == TraitTab
+            ? n.Kind == TreeNodeKind.Ultimate || n.Kind == TreeNodeKind.Key || n.Kind == TreeNodeKind.Passive
+            : n.Branch == tab && (n.Kind == TreeNodeKind.Skill || n.Kind == TreeNodeKind.Mod || n.Kind == TreeNodeKind.Evolution);
+
+        static int TabOf(TreeNode n)
+        {
+            for (int t = 0; t < 4; t++) if (InTab(n, t)) return t;
+            return -1;
+        }
+
+        /// <summary>Where each node stands in its tab (centres, UI px from the window's top-left).</summary>
         void Layout(TreeDef t)
         {
             _pos.Clear();
             for (int b = 0; b < 3; b++)
             {
+                int rows = 0;
+                foreach (var n in t.Nodes) if (n.Branch == b && n.Kind == TreeNodeKind.Skill) rows++;
+                float rowH = Mathf.Min(76f, (BodyBottom - 6f - RowsTop) / Mathf.Max(1, rows));
                 int row = 0, passive = 0;
                 foreach (var n in t.Nodes)
                 {
@@ -139,93 +170,56 @@ namespace Lanternkeeper.View
                     switch (n.Kind)
                     {
                         case TreeNodeKind.Skill:
-                            float y = RowTop + row * RowH;
+                            float y = RowsTop + rowH * (row + 0.5f);
                             _pos[n.Id] = new Vector2(SkillX, y);
                             foreach (var m in t.Nodes)
                             {
                                 if (m.Parent != n.Id) continue;
-                                if (m.Kind == TreeNodeKind.Mod) _pos[m.Id] = new Vector2(ModX + (m.Id.EndsWith(":1", StringComparison.Ordinal) ? 26f : 0f), y);
+                                if (m.Kind == TreeNodeKind.Mod) _pos[m.Id] = new Vector2(m.Id.EndsWith(":1", StringComparison.Ordinal) ? Mod1X : Mod0X, y);
                                 else if (m.Kind == TreeNodeKind.Evolution) _pos[m.Id] = new Vector2(EvoX, y);
                             }
                             row++;
                             break;
                         case TreeNodeKind.Passive:
-                            _pos[n.Id] = new Vector2(452f + passive++ * 24f, 336f);
+                            _pos[n.Id] = new Vector2(PassiveX + passive++ * PassiveStep, TraitTop + b * TraitH);
                             break;
                         case TreeNodeKind.Key:
-                            _pos[n.Id] = new Vector2(462f + n.KeyIndex * 56f, 246f);
+                            _pos[n.Id] = new Vector2(KeyX + n.KeyIndex * KeyStep, TraitTop + b * TraitH);
                             break;
                     }
                 }
             }
             int u = 0;
-            foreach (var n in t.Nodes) if (n.Kind == TreeNodeKind.Ultimate) _pos[n.Id] = new Vector2(470f + u++ * 60f, 124f);
+            foreach (var n in t.Nodes) if (n.Kind == TreeNodeKind.Ultimate) _pos[n.Id] = new Vector2(SkillX + u++ * 260f, UltY);
         }
 
-        /// <summary>Only the open tab's nodes, lines and row labels show; the ultimates always do.</summary>
-        void ShowTab()
+        void ShowTab(int t)
         {
-            foreach (var nv in _nodes)
-                nv.Holder.SetActive(nv.Node.Kind == TreeNodeKind.Ultimate || (nv.Node.Branch == _tab && nv.Node.Kind != TreeNodeKind.Root));
-            foreach (var (child, line) in _edges) line.gameObject.SetActive(child.Branch == _tab);
-            foreach (var go in _rowBits) go.SetActive(!go.name.Contains("#") || go.name.EndsWith("#" + _tab, StringComparison.Ordinal));
-            for (int b = 0; b < 3; b++) _tabs[b].GetComponentInChildren<Text>().color = b == _tab ? UiKit.Gold : UiKit.Dim;
+            _tab = t;
+            for (int i = 0; i < 4; i++)
+            {
+                if (_tabRoots[i] != null) _tabRoots[i].gameObject.SetActive(i == t);
+                _tabText[i].color = i == t ? UiKit.Gold : UiKit.Dim;
+                _tabBar[i].enabled = i == t;
+            }
+            if (_selected != null && !InTab(_selected, t)) _selected = null;
+            _hovered = null;
+            ShowCard();
         }
 
         void Build()
         {
-            // Node objects go with their holders (Render destroys those on a class change); edges are separate.
-            foreach (var e in _edges) UnityEngine.Object.Destroy(e.line.gameObject);
-            foreach (var go in _rowBits) UnityEngine.Object.Destroy(go);
-            _rowBits.Clear();
+            foreach (var r in _tabRoots) if (r != null) UnityEngine.Object.Destroy(r.gameObject);
             _rowNames.Clear();
             _nodes.Clear();
+            _viewOf.Clear();
             _edges.Clear();
+            _hovered = _selected = null;
             _classId = _world.Hero.ClassId;
             var t = SkillTree.For(_classId);
             Layout(t);
-            for (int b = 0; b < 3; b++) _tabs[b].GetComponentInChildren<Text>().text = Talents.BranchName(_classId, b);
-            // row labels: the level each skill opens at (Diablo II's 1 · 6 · 12 ... down the left), the foot's headings
-            foreach (var n in t.Nodes)
-            {
-                if (n.Kind != TreeNodeKind.Skill) continue;
-                var pp = Pos(n);
-                var lv = UiKit.Label(_treeLayer, "Lv " + SkillBook.Get(n.SkillId).Unlock, 14f, pp.y - 6f, 48f, 12f, 8, TextAnchor.UpperRight, UiKit.Dim);
-                lv.gameObject.name = "row#" + n.Branch;
-                _rowBits.Add(lv.gameObject);
-                var nm = UiKit.Label(_treeLayer, SkillBook.Get(n.SkillId).Name, EvoX + 30f, pp.y - 6f, 196f, 12f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-                nm.horizontalOverflow = HorizontalWrapMode.Overflow;
-                nm.gameObject.name = "row#" + n.Branch;
-                _rowBits.Add(nm.gameObject);
-                _rowNames.Add((nm, n.SkillId));
-            }
-            for (int b = 0; b < 3; b++)
-            {
-                var head = _passiveHeads[b] = UiKit.Label(_treeLayer, "갈래 강화", 440f, 306f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-                head.gameObject.name = "row#" + b;
-                _rowBits.Add(head.gameObject);
-                // Spelled as a condition, in a readable colour (loop 2: "갈래 포인트 4 · 9 · 15" was near-invisible grey).
-                // One line that fits (critique 5 P0: the long sentence wrapped under the I node).
-                var keys = UiKit.Label(_treeLayer, "핵심 특성  <color=#c8c0a8>" + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트</color>",
-                    440f, 210f, 220f, 16f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-                keys.horizontalOverflow = HorizontalWrapMode.Overflow;
-                keys.gameObject.name = "row#" + b;
-                _rowBits.Add(keys.gameObject);
-            }
-            var ult = _ultHead = UiKit.Label(_treeLayer, "궁극기  <color=#6f6860>Lv" + SkillBook.UltimateLevel + " · 하나만</color>", 440f, 84f, 160f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            ult.horizontalOverflow = HorizontalWrapMode.Overflow;
-            _rowBits.Add(ult.gameObject);
-            ult.gameObject.name = "ult";
-            // Names under the right-hand nodes (loop 2: keystones and the second ultimate were pictures only).
-            foreach (var n in t.Nodes)
-            {
-                if (n.Kind != TreeNodeKind.Key && n.Kind != TreeNodeKind.Ultimate) continue;
-                var pp = Pos(n);
-                string label = n.Kind == TreeNodeKind.Key ? Talents.KeystoneName(n.Branch, n.KeyIndex) : SkillBook.Get(n.SkillId).Name;
-                var under = UiKit.Label(_treeLayer, label, pp.x - 30f, pp.y + 22f, 60f, 20f, 8, TextAnchor.UpperCenter, UiKit.Dim);
-                under.gameObject.name = n.Kind == TreeNodeKind.Key ? "row#" + n.Branch : "ult name";
-                _rowBits.Add(under.gameObject);
-            }
+            for (int i = 0; i < 4; i++) _tabRoots[i] = UiKit.Rect(_treeLayer, "tab " + i, 0f, 0f, TreeW, H);
+            for (int b = 0; b < 3; b++) _tabText[b].text = Talents.BranchName(_classId, b);
 
             // Branch colour = the most common element among its skills.
             for (int b = 0; b < 3; b++)
@@ -244,70 +238,157 @@ namespace Lanternkeeper.View
                 _branchColor[b] = FxView.ElementColor(best);
             }
 
-            // Edges first (under the nodes).
+            // ---------- branch tabs: column heads, a plate per row, the name and what it needs beside the skill ----------
+            for (int b = 0; b < 3; b++)
+            {
+                var root = _tabRoots[b];
+                UiKit.Label(root, "스킬", NameX, 66f, 120f, 12f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                UiKit.Label(root, "변형", Mod0X - 32f, 66f, Mod1X - Mod0X + 64f, 12f, 11, TextAnchor.UpperCenter, UiKit.Dim);
+                UiKit.Label(root, "진화", EvoX - 40f, 66f, 80f, 12f, 11, TextAnchor.UpperCenter, UiKit.Dim);
+            }
             foreach (var n in t.Nodes)
             {
-                if (n.Parent == null) continue;
-                if (n.Kind == TreeNodeKind.Ultimate || n.Kind == TreeNodeKind.Passive || n.Kind == TreeNodeKind.Key) continue;
-                var p = t.Get(n.Parent);
-                if (p == null || p.Kind == TreeNodeKind.Root || p.Kind == TreeNodeKind.Passive) continue;
-                var line = UiKit.Fill(_treeLayer, "edge", 0f, 0f, 1f, 1f, Color.clear);
-                var a = Pos(p);
-                var b = Pos(n);
-                var d = b - a;
+                if (n.Kind != TreeNodeKind.Skill) continue;
+                var root = _tabRoots[n.Branch];
+                var p = Pos(n);
+                UiKit.Fill(root, "row", 20f, p.y - 33f, TreeW - 36f, 70f, Plate);
+                var nm = UiKit.Label(root, "", NameX, p.y - 17f, 210f, 16f, 13, TextAnchor.UpperLeft, UiKit.Ink);
+                nm.horizontalOverflow = HorizontalWrapMode.Overflow;
+                var st = UiKit.Label(root, "", NameX, p.y + 3f, 210f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                st.horizontalOverflow = HorizontalWrapMode.Overflow;
+                _rowNames.Add((nm, st, n));
+            }
+            // What each 변형 does, under it (they were anonymous diamonds).
+            foreach (var n in t.Nodes)
+            {
+                if (n.Kind != TreeNodeKind.Mod) continue;
+                var p = Pos(n);
+                UiKit.Label(_tabRoots[n.Branch], ModShort(n.Mod), p.x - 32f, p.y + 23f, 64f, 12f, 10, TextAnchor.UpperCenter, UiKit.Dim);
+            }
+
+            // ---------- 특성 tab ----------
+            var trait = _tabRoots[TraitTab];
+            UiKit.Label(trait, "궁극기  <color=#8a8178>통합 레벨 " + SkillBook.UltimateLevel + "부터 · 둘 중 하나만 고릅니다</color>", 24f, 66f, TreeW - 48f, 16f, 13, TextAnchor.UpperLeft, UiKit.Gold)
+                .horizontalOverflow = HorizontalWrapMode.Overflow;
+            UiKit.Fill(trait, "row", 20f, UltY - 32f, TreeW - 36f, 64f, Plate);
+            foreach (var n in t.Nodes)
+            {
+                if (n.Kind != TreeNodeKind.Ultimate) continue;
+                var p = Pos(n);
+                var nm = UiKit.Label(trait, "", p.x + 36f, p.y - 17f, 200f, 16f, 13, TextAnchor.UpperLeft, UiKit.Ink);
+                nm.horizontalOverflow = HorizontalWrapMode.Overflow;
+                var st = UiKit.Label(trait, "", p.x + 36f, p.y + 3f, 200f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                st.horizontalOverflow = HorizontalWrapMode.Overflow;
+                _rowNames.Add((nm, st, n));
+            }
+            UiKit.Fill(trait, "rule", 16f, 166f, TreeW - 32f, 1f, UiKit.Line);
+            UiKit.Label(trait, "갈래", 24f, 180f, 100f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            UiKit.Label(trait, "핵심 특성  <color=#8a8178>갈래에 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트</color>",
+                KeyX - 36f, 180f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink).horizontalOverflow = HorizontalWrapMode.Overflow;
+            UiKit.Label(trait, "갈래 강화", PassiveX - 20f, 180f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            for (int b = 0; b < 3; b++)
+            {
+                float y = TraitTop + b * TraitH;
+                UiKit.Fill(trait, "row", 20f, y - 34f, TreeW - 36f, 70f, Plate);
+                var c = _branchColor[b];
+                UiKit.Label(trait, Talents.BranchName(_classId, b), 30f, y - 17f, 100f, 16f, 13, TextAnchor.UpperLeft, Color.Lerp(c, Color.white, 0.35f));
+                _branchPoints[b] = UiKit.Label(trait, "", 30f, y + 3f, 100f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                _passiveCount[b] = UiKit.Label(trait, "", PassiveX - 20f, y + 22f, 200f, 12f, 10, TextAnchor.UpperLeft, UiKit.Dim);
+            }
+            foreach (var n in t.Nodes)
+            {
+                if (n.Kind != TreeNodeKind.Key) continue;
+                var p = Pos(n);
+                UiKit.Label(trait, Talents.KeystoneName(n.Branch, n.KeyIndex), p.x - 36f, p.y + 25f, 72f, 12f, 10, TextAnchor.UpperCenter, UiKit.Dim)
+                    .horizontalOverflow = HorizontalWrapMode.Overflow;
+            }
+
+            // Trunk lines (skill to the next skill, under the nodes).
+            foreach (var n in t.Nodes)
+            {
+                if (n.Kind != TreeNodeKind.Skill || n.Parent == null) continue;
+                var parent = t.Get(n.Parent);
+                if (parent == null || parent.Kind != TreeNodeKind.Skill) continue;
+                var a = Pos(parent);
+                var d = Pos(n) - a;
+                var line = UiKit.Fill(_tabRoots[n.Branch], "edge", 0f, 0f, 1f, 1f, Color.clear);
                 var rt = line.rectTransform;
                 rt.pivot = new Vector2(0f, 0.5f);
                 rt.anchoredPosition = new Vector2(a.x, -a.y);
-                bool trunk = n.Kind == TreeNodeKind.Skill || n.Kind == TreeNodeKind.Ultimate;
-                rt.sizeDelta = new Vector2(d.magnitude, trunk ? 4f : 2f);
+                rt.sizeDelta = new Vector2(d.magnitude, 4f);
                 rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg);
                 _edges.Add((n, line));
             }
-            foreach (var n in t.Nodes) _nodes.Add(MakeNode(n));
-            ShowTab();
+            // Ultimates first, so the 특성 tab's card opens on them (DefaultNode walks this order).
+            var order = new List<TreeNode>();
+            foreach (var n in t.Nodes) if (n.Kind == TreeNodeKind.Ultimate) order.Add(n);
+            foreach (var n in t.Nodes) if (n.Kind != TreeNodeKind.Ultimate) order.Add(n);
+            foreach (var n in order)
+            {
+                int tab = TabOf(n);
+                if (tab < 0) continue; // the root lantern has no place in the tabs
+                var nv = MakeNode(n, _tabRoots[tab]);
+                _nodes.Add(nv);
+                _viewOf[n] = nv;
+            }
+            // The node the card describes wears a thin light ring.
+            _selRing = UiKit.Fill(_tabRoots[0], "selected", 0f, 0f, 10f, 10f, new Color(1f, 0.96f, 0.86f, 0.9f));
+            _selRing.sprite = UiKit.Disc(_ui, 64, 2);
+            ShowTab(_tab);
         }
 
-        NodeView MakeNode(TreeNode n)
+        NodeView MakeNode(TreeNode n, RectTransform parent)
         {
-            // Drawn frame sizes (art 1:1): skill 44, evolution 52, keystone 56, 변형 20, passive 16, root lantern 48×64.
-            bool drawnRoot = n.Kind == TreeNodeKind.Root && _ui.Catalog.Has("ui/ui2_tree_lantern");
-            float size = n.Kind == TreeNodeKind.Root ? 48f : n.Kind == TreeNodeKind.Key ? 48f : n.Kind == TreeNodeKind.Mod ? 20f
-                : n.Kind == TreeNodeKind.Passive ? 16f : n.Kind == TreeNodeKind.Evolution ? 48f : 44f;
-            float height = drawnRoot ? 64f : size;
+            // Drawn frames at 1:1 (skill 44, evolution 52→48, keystone 56→48) and the small ones at ×2 (변형 20→40,
+            // passive 16→32); every node takes clicks over at least 40 px (critique 6: a 12 px diamond read as no button).
+            float size = n.Kind == TreeNodeKind.Key || n.Kind == TreeNodeKind.Evolution ? 48f : n.Kind == TreeNodeKind.Mod ? 40f
+                : n.Kind == TreeNodeKind.Passive ? 32f : 44f;
+            float hit = Mathf.Max(size, 40f), off = (hit - size) / 2f;
             var p = Pos(n);
-            var holder = UiKit.Rect(_treeLayer, n.Id, p.x - size / 2f, p.y - height / 2f, size, height);
-            var nv = new NodeView { Node = n, Holder = holder.gameObject };
-            nv.Glow = UiKit.Fill(holder, "glow", -10f, (height - size) / 2f - 10f, size + 20f, size + 20f, Color.clear);
+            var holder = UiKit.Rect(parent, n.Id, p.x - hit / 2f, p.y - hit / 2f, hit, hit);
+            var hitArea = holder.gameObject.AddComponent<Image>();
+            hitArea.color = Color.clear;
+            hitArea.raycastTarget = true;
+            var nv = new NodeView { Node = n, Holder = holder.gameObject, Size = size };
+            nv.Glow = UiKit.Fill(holder, "glow", off - 10f, off - 10f, size + 20f, size + 20f, Color.clear);
             nv.Glow.sprite = UiKit.Glow(_ui, 64); // soft halo, not a flat disc
-            var frameImg = UiKit.Rect(holder, "frame", 0f, 0f, size, height).gameObject.AddComponent<Image>();
-            nv.Frame = frameImg;
+            nv.Frame = UiKit.Rect(holder, "frame", off, off, size, size).gameObject.AddComponent<Image>();
             nv.Frame.sprite = FrameFor(n);
-            nv.Frame.raycastTarget = true;
-            // The drawn lantern is the root itself; other kinds that stand for a skill carry its icon.
-            if (n.Kind == TreeNodeKind.Skill || n.Kind == TreeNodeKind.Evolution || n.Kind == TreeNodeKind.Ultimate || (n.Kind == TreeNodeKind.Root && !drawnRoot))
+            nv.Frame.raycastTarget = false;
+            if (n.Kind == TreeNodeKind.Skill || n.Kind == TreeNodeKind.Evolution || n.Kind == TreeNodeKind.Ultimate)
             {
-                float io = Mathf.Floor((size - 32f) / 2f);
+                float io = off + Mathf.Floor((size - 32f) / 2f);
                 nv.Icon = _ui.Sprite(holder, IconFor(n), io, io, 32f, 32f);
             }
             if (n.Kind == TreeNodeKind.Key)
-                nv.Mark = UiKit.Label(holder, Roman(n.KeyIndex), 0f, 0f, size, size, 12, TextAnchor.MiddleCenter, UiKit.Gold);
-            var ptr = frameImg.gameObject.AddComponent<UiPointer>();
-            ptr.Enter += () => { _hovered = n; Card(n); };
-            ptr.Exit += () => { if (_hovered == n) _hovered = null; };
-            ptr.LeftClick += () => { if (_world.TakeTreeNode(n.Id)) Changed(); else Card(n); };
-            // The node's root object holds glow, frame and icon; destroying the frame's parent removes them all.
-            nv.Frame = frameImg;
-            _holders.Add(holder.gameObject);
+                nv.Mark = UiKit.Label(holder, Roman(n.KeyIndex), off, off, size, size, 12, TextAnchor.MiddleCenter, UiKit.Gold);
+            // "+" = takeable now; the lock = closed for a reason other than points.
+            nv.Plus = UiKit.Label(holder, "+", hit - 11f, -5f, 16f, 16f, 14, TextAnchor.MiddleCenter, UiKit.Good);
+            nv.Lock = MakeLock(holder, hit - 10f, hit - 12f);
+            var ptr = holder.gameObject.AddComponent<UiPointer>();
+            ptr.Enter += () => { _hovered = n; ShowCard(); };
+            ptr.Exit += () => { if (_hovered == n) { _hovered = null; ShowCard(); } };
+            ptr.LeftClick += () => { _selected = n; if (_world.TakeTreeNode(n.Id)) Changed(); else ShowCard(); };
             return nv;
         }
 
-        readonly List<GameObject> _holders = new List<GameObject>();
+        /// <summary>A small lock drawn from rectangles (no lock art, and the font may not carry the glyph) — as the codex's.</summary>
+        static GameObject MakeLock(RectTransform holder, float x, float y)
+        {
+            var l = UiKit.Rect(holder, "lock", x, y, 11f, 13f);
+            var c = new Color(0.86f, 0.82f, 0.74f);
+            UiKit.Fill(l, "lock back", 0f, 4f, 11f, 9f, new Color(0f, 0f, 0f, 0.75f));
+            UiKit.Fill(l, "lock shackle", 3f, 0f, 5f, 1f, c);
+            UiKit.Fill(l, "lock shackle", 3f, 0f, 1f, 5f, c);
+            UiKit.Fill(l, "lock shackle", 7f, 0f, 1f, 5f, c);
+            UiKit.Fill(l, "lock body", 1f, 5f, 9f, 7f, c);
+            return l.gameObject;
+        }
 
         Sprite FrameFor(TreeNode n)
         {
-            string key = n.Kind == TreeNodeKind.Root ? "ui/ui2_tree_lantern" : n.Kind == TreeNodeKind.Key ? "ui/ui2_node_key"
-                : n.Kind == TreeNodeKind.Mod ? "ui/ui2_node_mod" : n.Kind == TreeNodeKind.Passive ? "ui/ui2_node_passive"
-                : n.Kind == TreeNodeKind.Evolution ? "ui/ui2_node_evo" : "ui/ui2_node_skill";
+            string key = n.Kind == TreeNodeKind.Key ? "ui/ui2_node_key" : n.Kind == TreeNodeKind.Mod ? "ui/ui2_node_mod"
+                : n.Kind == TreeNodeKind.Passive ? "ui/ui2_node_passive" : n.Kind == TreeNodeKind.Evolution ? "ui/ui2_node_evo" : "ui/ui2_node_skill";
             if (_ui.Catalog.Has(key)) return _ui.Catalog.Get(key);
             // Until the drawn frames arrive: crisp procedural shapes.
             switch (n.Kind)
@@ -315,18 +396,12 @@ namespace Lanternkeeper.View
                 case TreeNodeKind.Mod: return UiKit.Diamond(_ui, 16);
                 case TreeNodeKind.Passive: return UiKit.Disc(_ui, 12, 0);
                 case TreeNodeKind.Key: return UiKit.Star(_ui, 40);
-                case TreeNodeKind.Root: return UiKit.Disc(_ui, 48, 3);
                 default: return UiKit.Disc(_ui, 40, 3);
             }
         }
 
         string IconFor(TreeNode n)
         {
-            if (n.Kind == TreeNodeKind.Root)
-            {
-                var basic = SkillBook.BasicFor(_classId);
-                return _ui.Catalog.Has("icon/skill_" + basic.Id) ? "icon/skill_" + basic.Id : "icon/item_sword";
-            }
             var s = SkillBook.Get(n.SkillId);
             string id = n.Kind == TreeNodeKind.Evolution && s.EvolveTo != null ? s.EvolveTo : s.Id;
             return _ui.Catalog.Has("icon/skill_" + id) ? "icon/skill_" + id : "icon/skill_" + s.BaseId;
@@ -334,98 +409,127 @@ namespace Lanternkeeper.View
 
         static string Roman(int k) => k == 0 ? "I" : k == 1 ? "II" : "III";
 
+        /// <summary>The 변형 in a word and a number, to fit under its node (the card spells it out).</summary>
+        static string ModShort(TreeMod m) => m == TreeMod.Copy ? "분신 +1" : m == TreeMod.Area ? "범위 +20%" : m == TreeMod.Cooldown ? "대기 −15%" : "위력 +20%";
+
         // ---------- per frame ----------
 
         public void Render()
         {
             if (!Visible) return;
             var h = _world.Hero;
-            if (_classId != h.ClassId)
-            {
-                foreach (var go in _holders) UnityEngine.Object.Destroy(go);
-                _holders.Clear();
-                Build();
-            }
+            if (_classId != h.ClassId) Build();
             float t = Time.unscaledTime;
             int stamp = h.TreeOrder.Count * 7919 + SkillTree.Points(h) * 31 + (h.TreeAuto ? 1 : 0);
             foreach (var id in h.TreeOrder) stamp = unchecked(stamp * 31 + id.GetHashCode());
             foreach (var kv in h.SkillUses) stamp = unchecked(stamp * 17 + SkillBook.SkillLevel(kv.Value));
             if (stamp != _stamp) { _stamp = stamp; Refresh(); }
-            // Takeable nodes breathe (four steps a second keeps the canvas calm).
-            float pulse = 0.3f + 0.2f * Mathf.Sin(Mathf.Floor(t * 4f) / 4f * 4f);
+            if (_resetAskedAt > 0f && Time.unscaledTime - _resetAskedAt > 3f) { _resetAskedAt = -10f; _resetLabel.text = "초기화"; }
+            // Takeable nodes breathe softly (four steps a second keeps the canvas calm).
+            float pulse = 0.18f + 0.14f * Mathf.Sin(Mathf.Floor(t * 4f) / 4f * 4f);
             foreach (var nv in _nodes)
                 if (!SkillTree.Has(h, nv.Node.Id) && SkillTree.Blocker(h, nv.Node) == null)
-                    nv.Glow.color = new Color(1f, 0.85f, 0.5f, pulse);
+                    nv.Glow.color = new Color(1f, 0.9f, 0.6f, pulse);
         }
 
         void Refresh()
         {
             var h = _world.Hero;
-            int points = SkillTree.Points(h), spent = SkillTree.Spent(h);
+            int points = SkillTree.Points(h), spent = SkillTree.Spent(h), left = Math.Max(0, points - spent);
             _title.text = "스킬 트리 · " + SkillBook.ClassName(h.ClassId);
-            // "남은 포인트 0 (받은 50)": 50 / 50 read as either all spent or all left (loop 2).
-            _points.text = "남은 포인트 " + (points > spent ? "<color=#9fd28a>" + (points - spent) + "</color>" : "0")
-                + "  <color=#8a8178>(받은 " + points + " = 레벨 " + h.IntegratedLevel + " + 처음 " + SkillTree.StartBonus + ")</color>";
-            _points.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _points.text = "남은 포인트 " + (left > 0 ? "<color=#9fd28a>" + left + "</color>" : "<color=#8a8178>0</color>");
+            _autoLabel.text = h.TreeAuto ? "자동 분배: 켬" : "자동 분배: 끔";
+            _autoLabel.color = h.TreeAuto ? UiKit.Good : UiKit.Dim;
+            _footer.text = h.TreeAuto ? "자동 분배가 포인트를 넣고 있습니다. 칸을 직접 누르면 자동 분배가 꺼집니다."
+                : left > 0 ? "<color=#9fd28a>+</color> 표시가 있는 칸을 누르면 포인트 1을 넣어 배웁니다."
+                : "레벨이 오를 때마다 포인트 1을 받습니다.";
+
             var tree = SkillTree.For(h.ClassId);
-            foreach (var (label, id) in _rowNames)
+            foreach (var (label, status, n) in _rowNames)
             {
-                var def = SkillBook.Get(id);
+                var def = SkillBook.Get(n.SkillId);
                 bool evolved = def.EvolveTo != null && h.Evolved.Contains(def.BaseId);
                 label.text = evolved ? def.Name + "  <color=#ffcf5a>→ " + SkillBook.Get(def.EvolveTo).Name + "</color>" : def.Name;
+                label.color = SkillTree.Has(h, n.Id) ? UiKit.Ink : UiKit.Dim;
+                status.text = Status(h, n);
             }
             for (int b = 0; b < 3; b++)
             {
-                if (_passiveHeads[b] == null) continue;
+                if (_branchPoints[b] == null) continue;
                 int have = 0, all = 0;
                 foreach (var n in tree.Nodes)
                     if (n.Kind == TreeNodeKind.Passive && n.Branch == b) { all++; if (SkillTree.Has(h, n.Id)) have++; }
-                _passiveHeads[b].text = "갈래 강화  <color=#6f6860>" + have + " / " + all + "</color>";
+                _branchPoints[b].text = "갈래 포인트 " + SkillTree.BranchPoints(h, b);
+                _passiveCount[b].text = have + " / " + all + " 습득";
             }
-            if (_ultHead != null)
-            {
-                string chosen = null;
-                foreach (var n in tree.Nodes)
-                    if (n.Kind == TreeNodeKind.Ultimate && SkillTree.Has(h, n.Id)) chosen = SkillBook.Get(n.SkillId).Name;
-                _ultHead.text = chosen != null ? "궁극기  <color=#ffcf5a>" + chosen + "</color>" : "궁극기  <color=#6f6860>Lv" + SkillBook.UltimateLevel + " · 하나만</color>"; // one line: the card starts at 600
-            }
-            _autoLabel.text = h.TreeAuto ? "자동 분배: 켬" : "자동 분배: 끔";
-            _autoLabel.color = h.TreeAuto ? UiKit.Good : UiKit.Dim;
 
             foreach (var (child, line) in _edges)
             {
-                bool lit = SkillTree.Has(h, child.Id);
-                var c = child.Branch >= 0 ? _branchColor[child.Branch] : UiKit.Gold;
-                line.color = lit ? new Color(c.r, c.g, c.b, 0.95f) : new Color(0.24f, 0.2f, 0.17f, 0.9f);
+                var c = _branchColor[child.Branch];
+                line.color = SkillTree.Has(h, child.Id) ? new Color(c.r, c.g, c.b, 0.95f) : new Color(0.3f, 0.26f, 0.22f, 0.9f);
             }
             foreach (var nv in _nodes)
             {
                 var n = nv.Node;
                 bool taken = SkillTree.Has(h, n.Id);
-                bool open = !taken && SkillTree.Blocker(h, n) == null;
-                var c = n.Branch >= 0 ? _branchColor[n.Branch] : UiKit.Gold;
-                nv.Frame.color = taken ? Color.white : open ? new Color(0.85f, 0.82f, 0.78f) : new Color(0.35f, 0.33f, 0.32f);
-                if (nv.Icon != null) nv.Icon.color = taken ? Color.white : open ? new Color(0.7f, 0.7f, 0.7f) : new Color(0.25f, 0.25f, 0.25f);
-                nv.Glow.color = taken ? new Color(c.r, c.g, c.b, n.Kind == TreeNodeKind.Passive || n.Kind == TreeNodeKind.Mod ? 0.85f : 0.7f) : Color.clear;
-                if (nv.Mark != null) nv.Mark.color = taken ? UiKit.Gold : new Color(0.5f, 0.47f, 0.42f);
+                string block = taken ? null : SkillTree.Blocker(h, n);
+                bool open = !taken && block == null;
+                // Owned: full colour and a gold halo. Takeable: near full, "+", breathing. Locked: 60 %, a lock.
+                var dim = new Color(0.6f, 0.6f, 0.6f);
+                nv.Frame.color = taken ? Color.white : open ? new Color(0.92f, 0.9f, 0.86f) : dim;
+                if (nv.Icon != null) nv.Icon.color = taken ? Color.white : open ? new Color(0.85f, 0.85f, 0.85f) : dim;
+                nv.Glow.color = taken ? new Color(1f, 0.78f, 0.36f, n.Kind == TreeNodeKind.Passive || n.Kind == TreeNodeKind.Mod ? 0.8f : 0.65f) : Color.clear;
+                if (nv.Mark != null) nv.Mark.color = taken ? UiKit.Gold : open ? UiKit.Ink : new Color(0.55f, 0.52f, 0.48f);
+                nv.Plus.enabled = open;
+                nv.Lock.SetActive(!taken && !open && block != "포인트 부족");
             }
-            for (int i = 0; i < 4; i++)
+            ShowCard();
+        }
+
+        /// <summary>The short line beside a skill or ultimate: owned, takeable, or what it waits for.</summary>
+        static string Status(Hero h, TreeNode n)
+        {
+            if (SkillTree.Has(h, n.Id)) return "<color=#9fd28a>배움</color>";
+            string block = SkillTree.Blocker(h, n);
+            if (block == null) return "<color=#ffd38a>+ 지금 배울 수 있음</color>";
+            int need = n.Kind == TreeNodeKind.Ultimate ? SkillBook.UltimateLevel : SkillBook.Get(n.SkillId).Unlock;
+            if (need > h.IntegratedLevel) return "<color=#d8907a>필요 Lv " + need + "</color>";
+            if (block == "선행 노드 필요") return "<color=#d8907a>윗줄 스킬을 먼저</color>";
+            if (block == "궁극기는 하나만 선택 가능") return "<color=#8a8178>다른 궁극기를 골랐음</color>";
+            return "<color=#8a8178>" + block + "</color>";
+        }
+
+        /// <summary>The card shows the node pointed at, else the one clicked last, else this tab's first takeable (or owned) node.</summary>
+        void ShowCard()
+        {
+            if (_classId == null) return;
+            var n = _hovered ?? _selected ?? DefaultNode();
+            if (n == null) return;
+            Card(n);
+            if (_selRing != null && _viewOf.TryGetValue(n, out var nv))
             {
-                var s = h.Ring.Slots[i];
-                _ringIcons[i].enabled = s != null;
-                if (s != null) _ringIcons[i].sprite = _ui.Catalog.Get(_ui.Catalog.Has("icon/skill_" + s.Id) ? "icon/skill_" + s.Id : "icon/skill_" + s.BaseId);
+                var rt = _selRing.rectTransform;
+                rt.SetParent(nv.Holder.transform, false);
+                rt.SetSiblingIndex(1); // over the glow, under the frame
+                float hit = Mathf.Max(nv.Size, 40f), s = nv.Size + 4f;
+                rt.anchoredPosition = new Vector2((hit - s) / 2f, -(hit - s) / 2f);
+                rt.sizeDelta = new Vector2(s, s);
             }
-            if (_hovered != null) Card(_hovered);
-            else
+        }
+
+        TreeNode DefaultNode()
+        {
+            var h = _world.Hero;
+            TreeNode owned = null, first = null;
+            foreach (var nv in _nodes)
             {
-                // Nothing pointed at: how to read the tree.
-                // Critique 5: the card is for the node pointed at; with none, only the three things a reader needs.
-                _cardName.text = "칸에 마우스를 올려 보세요";
-                _cardBody.text = "<color=#8a8178>설명이 여기 나옵니다. 클릭하면 포인트 1을 넣습니다.</color>\n\n"
-                    + "<color=#ffcf5a>●</color> 큰 칸  스킬\n<color=#ffcf5a>·</color> 작은 칸  그 스킬의 변형\n<color=#ffcf5a>◆</color> 오른쪽 칸  진화 (숙련 " + SkillTree.EvoMastery + ")";
-                _cardIcon.enabled = false;
-                _cardFrame.enabled = false;
+                var n = nv.Node;
+                if (!InTab(n, _tab)) continue;
+                if (first == null) first = n;
+                if (SkillTree.Has(h, n.Id)) { if (owned == null) owned = n; }
+                else if (SkillTree.Blocker(h, n) == null) return n;
             }
+            return owned ?? first;
         }
 
         void Card(TreeNode n)
@@ -436,32 +540,28 @@ namespace Lanternkeeper.View
             bool icon = true;
             switch (n.Kind)
             {
-                case TreeNodeKind.Root:
-                    name = "등불 · 기본 공격";
-                    sb.Append("모든 가지가 이곳에서 자라납니다.");
-                    break;
                 case TreeNodeKind.Skill:
                 {
                     var s = SkillBook.Get(n.SkillId);
                     name = s.Name;
                     // UX plan B2/B5: the shared skill card - what it does first, then the numbers (two ultimates read alike before).
                     sb.Append(SkillCard.Build(h, s, title: false));
-                    sb.Append("\n<color=#8a8178>열면 스킬 칸에 넣을 수 있습니다. 통합 레벨 ").Append(s.Unlock).Append("부터.</color>");
+                    sb.Append("\n<color=#8a8178>배우면 스킬 배치에 넣을 수 있습니다. 통합 레벨 ").Append(s.Unlock).Append("부터.</color>");
                     break;
                 }
                 case TreeNodeKind.Mod:
                     name = "변형 · " + SkillBook.Get(n.SkillId).Name;
-                    sb.Append("<color=#ffd38a>").Append(SkillTree.ModText(n.Mod)).Append("</color>\n<color=#8a8178>이 스킬에만 걸린다.</color>");
+                    sb.Append("<color=#ffd38a>").Append(SkillTree.ModText(n.Mod)).Append("</color>\n<color=#8a8178>이 스킬에만 걸립니다.</color>");
                     icon = false;
                     break;
                 case TreeNodeKind.Passive:
-                    name = "갈래 위력 · " + Talents.BranchName(h.ClassId, n.Branch);
+                    name = "갈래 강화 · " + Talents.BranchName(h.ClassId, n.Branch);
                     sb.Append(n.Branch == 0 ? "피해·원소 피해·치명타·공격 속도" : n.Branch == 1 ? "생명력·받는 피해 감소·생명력 재생" : "공명 피해·연쇄 범위·공명 게이지")
                       .Append("\n<color=#8a8178>이 갈래 능력치 +").Append(SkillTree.PassiveWeight).Append("단계</color>");
                     icon = false;
                     break;
                 case TreeNodeKind.Key:
-                    name = "핵심 · " + Talents.KeystoneName(n.Branch, n.KeyIndex);
+                    name = "핵심 특성 · " + Talents.KeystoneName(n.Branch, n.KeyIndex);
                     sb.Append("<color=#ffd38a>").Append(Talents.KeystoneText(n.Branch, n.KeyIndex)).Append("</color>")
                       .Append("\n<color=#8a8178>갈래 포인트 ").Append(SkillTree.BranchPoints(h, n.Branch)).Append(" / ").Append(SkillTree.KeyThreshold[n.KeyIndex]).Append("</color>");
                     icon = false;
@@ -489,13 +589,27 @@ namespace Lanternkeeper.View
             }
             bool taken = SkillTree.Has(h, n.Id);
             string block = taken ? null : SkillTree.Blocker(h, n);
-            sb.Append("\n\n").Append(taken ? "<color=#9fd28a>습득함</color>" : block == null ? "<color=#ffd38a>클릭하여 습득 · " + n.Cost + "포인트</color>" : "<color=#ff8a7a>" + block + "</color>");
-            if (!taken && h.TreeAuto && block == null) sb.Append("\n<color=#6f6a64>찍으면 자동 분배가 꺼진다</color>");
+            if (block == "선행 노드 필요")
+            {
+                // Name what comes first (the 특성 tab's nodes hang off skills that live in the branch tabs).
+                var parent = SkillTree.For(h.ClassId).Get(n.Parent);
+                if (parent != null && parent.Kind == TreeNodeKind.Skill)
+                {
+                    string pn = SkillBook.Get(parent.SkillId).Name;
+                    block = "먼저 「" + pn + "」" + Josa(pn, "을", "를") + " 배워야 합니다";
+                }
+            }
+            sb.Append("\n\n").Append(taken ? "<color=#9fd28a>배움</color>" : block == null ? "<color=#ffd38a>클릭하면 배웁니다 · " + n.Cost + "포인트</color>" : "<color=#ff8a7a>" + block + "</color>");
+            if (!taken && h.TreeAuto && block == null) sb.Append("\n<color=#8a8178>직접 찍으면 자동 분배가 꺼집니다</color>");
             _cardName.text = name;
             _cardBody.text = sb.ToString();
             _cardIcon.enabled = icon;
-            _cardFrame.enabled = icon;
+            _cardWell.enabled = icon;
             if (icon) _cardIcon.sprite = _ui.Catalog.Get(IconFor(n));
+            // Without an icon the name and text move up into its place.
+            _cardName.rectTransform.anchoredPosition = new Vector2(icon ? CardX + 94f : CardX + 12f, -74f);
+            _cardName.rectTransform.sizeDelta = new Vector2(icon ? CardW - 124f : CardW - 42f, 40f);
+            _cardBody.rectTransform.anchoredPosition = new Vector2(CardX + 12f, icon ? -156f : -100f);
         }
 
         /// <summary>The Korean particle by the last syllable: 받침 → <paramref name="with"/> (이/을/은), none → <paramref name="without"/>.</summary>

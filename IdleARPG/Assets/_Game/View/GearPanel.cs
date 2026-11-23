@@ -25,7 +25,7 @@ namespace Lanternkeeper.View
         // 희승 11-24 "너무 따닥따닥 붙어있고 … 자동 분해는 설정창 아이콘 달고 설정창 열어서": one job per window part — tabs on top,
         // the doll, the bag with room between its cells, one foot line; 자동 장착·자동 분해 behind the ⚙ button, the hand
         // controls and the rarity legend behind "?".
-        const float W = 440f, H = 570f, Cell = 36f, Pitch = 40f;
+        const float W = 440f, H = 534f, Cell = 36f, Pitch = 40f; // 534: its foot clears the skill bar (critique 7 P0)
         const int Cols = Bag.Cols, Rows = Bag.Capacity / Bag.Cols;
 
         readonly UiKit _ui;
@@ -268,7 +268,7 @@ namespace Lanternkeeper.View
             Tip(help.gameObject, "등급 색 · 화살표 · 조작법");
 
             // ---------- the paper doll (Diablo II's places; no off-hand here, so the hero stands where a shield would) ----------
-            const float ox = 40f, oy = 70f, cw = 76f; // under the 장비 | 룬 보관함 tabs
+            const float ox = 40f, oy = 64f, cw = 76f; // under the 장비 | 룬 보관함 tabs
             _doll = UiKit.Rect(_win, "doll", 0f, 0f, W, H);
             var at = new Dictionary<EquipSpot, Rect>
             {
@@ -311,20 +311,20 @@ namespace Lanternkeeper.View
             const float bw = Cols * Pitch - 4f, bx = (W - bw) / 2f, by = oy + 278f;
             _bagHead = UiKit.Rect(_win, "bag head", 0f, 0f, W, H); // what the 룬 보관함 tab hides with the doll and the bag
             // Over the bag: its count on the left, its two actions on the right; 직전 교체 되돌리기 only while there is one.
-            _bagCount = UiKit.Label(_bagHead, "", bx, by - 26f, 120f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-            var undo = ui.Button(_bagHead, "", bx + 96f, by - 28f, UndoW, 19f, Undo);
+            _bagCount = UiKit.Label(_bagHead, "", bx, by - 26f, 148f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            var undo = ui.Button(_bagHead, "", bx + 150f, by - 28f, UndoW, 19f, Undo);
             _undoButton = undo.gameObject;
             _undoLabel = undo.GetComponentInChildren<Text>();
             var undoHover = undo.gameObject.AddComponent<UiPointer>();
             undoHover.Enter = () => { if (_held == Rune.None) { _hint.text = UndoPreview(); _hintUntil = 0f; } };
             undoHover.Exit = () => { if (_held == Rune.None && _hintUntil <= 0f) _hint.text = HandHint; };
             var sort = ui.Button(_bagHead, "정렬", bx + bw - 140f, by - 28f, 52f, 19f, SortBag);
-            Tip(sort.gameObject, "좋은 것부터: ▲▲ · ▲ · ⇄ · 등급 순");
+            Tip(sort.gameObject, "좋은 것부터: ▲ · ⇄ · 등급 순");
             var salvage = ui.Button(_bagHead, "일괄 분해", bx + bw - 84f, by - 28f, 84f, 19f, SalvageAll);
             // 일괄 분해 gets a red frame because it destroys. Only this button's four edge strips are recoloured, not UiKit.
             foreach (var edge in salvage.GetComponentsInChildren<Image>()) if (edge.gameObject.name == "edge") edge.color = new Color(0.9f, 0.32f, 0.28f, 0.95f);
             _salvageAllLabel = salvage.GetComponentInChildren<Text>();
-            Tip(salvage.gameObject, "잠근 것 · ★ · 전설 이상을 뺀 나머지를 잿 파편으로 (확인을 한 번 더 받음)");
+            Tip(salvage.gameObject, "잠근 것 · ★ · 전설 이상은 남기고 분해");
             var chest = ui.Sprite(_bagHead, "ui/ui2_chest", bx - 10f, by - 10f, bw + 20f, Pitch * Rows + 18f, sliced: true);
             chest.preserveAspect = false;
             var view = UiKit.Rect(_win, "bag view", bx, by, bw + 2f, Pitch * Rows);
@@ -342,11 +342,11 @@ namespace Lanternkeeper.View
             for (int i = 0; i < Bag.Capacity; i++) AddCell();
 
             // the purse at the foot, as Diablo's gold; the one message line under it
-            float py = by + Pitch * Rows + 14f;
+            float py = by + Pitch * Rows + 10f;
             var purse = ui.Sprite(_win, "icon/item_gold", bx, py - 4f, 24f, 24f);
             purse.preserveAspect = true;
             _ash = UiKit.Label(_win, "", bx + 28f, py, 220f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold);
-            _hint = UiKit.Label(_win, HandHint, bx, H - 24f, bw, 14f, 12, TextAnchor.UpperCenter, new Color(0.78f, 0.72f, 0.62f));
+            _hint = UiKit.Label(_win, HandHint, bx + 150f, py, bw - 150f, 14f, 12, TextAnchor.UpperRight, new Color(0.78f, 0.72f, 0.62f)); // on the purse line
             BuildRunePage(bx, oy, bw, bx, 34f);
             BuildSettings();
 
@@ -472,7 +472,8 @@ namespace Lanternkeeper.View
 
             var bag = _world.Bag.Items;
             bool nearFull = bag.Count >= NearFull;
-            _bagCount.text = "가방  " + bag.Count + " / " + Bag.Capacity; // orange from 36: the ⚙ box says what a full bag does
+            // Orange from 36 and a word when full (critique 6: 40/40 said nothing); the ⚙ box says what a full bag does.
+            _bagCount.text = "가방  " + bag.Count + " / " + Bag.Capacity + (bag.Count >= Bag.Capacity ? "  가득 참" : "");
             _bagCount.color = nearFull ? Warn : UiKit.Ink;
             for (int i = 0; i < _cells.Count; i++)
             {
@@ -535,7 +536,7 @@ namespace Lanternkeeper.View
         {
             var it = cell.Item;
             if (_world.EquipFromBag(it.Uid)) return true;
-            Hover(cell, false, "<color=#ff6b61>요구 레벨 " + it.ReqLevel + "에 미달합니다</color>");
+            Hover(cell, false, !HeroStats.FitsClass(it, _world.Hero.ClassId) ? "<color=#ff6b61>다른 직업 전용 장비입니다</color>" : "<color=#ff6b61>요구 레벨 " + it.ReqLevel + "에 미달합니다</color>");
             return false;
         }
 
@@ -618,10 +619,10 @@ namespace Lanternkeeper.View
             }
             sb.Append("<color=#8a8178>잠근 것 · ★ 있는 것 · 전설 이상은 남깁니다</color>");
             lines++;
-            // Legendary or better is never in the set today; if the rule ever lets one in, the box says so in red.
+            // Legendaries and uniques enter the set only when this class can never wear them; the box says so in red.
             if (counts[(int)Rarity.Legendary] + counts[(int)Rarity.Unique] > 0)
             {
-                sb.Append("\n<color=#FF5A4D>전설 이상이 섞여 있습니다. 되돌릴 수 없습니다</color>");
+                sb.Append("\n<color=#FF5A4D>다른 직업 전용 전설·고유 ").Append(counts[(int)Rarity.Legendary] + counts[(int)Rarity.Unique]).Append("개 포함 · 되돌릴 수 없습니다</color>");
                 lines++;
             }
             _confirmText.text = sb.ToString();
@@ -700,6 +701,7 @@ namespace Lanternkeeper.View
             _hovered = cell;
             var it = cell.Item;
             if (it == null) { _tip.Hide(); _compare.Hide(); return; }
+            ItemTooltip.HeroClass = _world.Hero.ClassId;
             var h = _world.Hero;
             var foot = new StringBuilder();
             if (worn)
@@ -714,7 +716,7 @@ namespace Lanternkeeper.View
             // what the hand just did. The hand controls live once at the foot of the window, not in every tooltip.
             var cmp = HeroStats.Compare(h, it);
             var wornThere = h.Gear.Spots[(int)cmp.Spot];
-            if (cmp.Arrow == GearArrow.Locked) foot.Append("<color=#8a8178>지금 통합 레벨 ").Append(h.IntegratedLevel).Append("</color>");
+            if (cmp.Arrow == GearArrow.Locked && HeroStats.FitsClass(it, h.ClassId)) foot.Append("<color=#8a8178>지금 통합 레벨 ").Append(h.IntegratedLevel).Append("</color>");
             if (note != null) foot.Insert(0, foot.Length > 0 ? note + "\n" : note);
             _tip.Show(it, foot.ToString(), it.Locked ? "잠김" : null, cmp, wornThere, band: "가방");
             // Fixed left of the window (UX loop 2 P0-1): beside the cell they covered the bag, the orb and the skill bar.
@@ -778,7 +780,7 @@ namespace Lanternkeeper.View
         /// </summary>
         void BuildSettings()
         {
-            const float sw = W - 40f, pad = 16f, sh = 284f; // down to the bag's head: no doll pips peeking under it
+            const float sw = W - 40f, pad = 16f, sh = 278f; // down to the bag's head: no doll pips peeking under it
             _settings = UiKit.Rect(_win, "gear settings", 20f, 34f, sw, sh);
             var back = _settings.gameObject.AddComponent<Image>();
             back.color = new Color(0.045f, 0.04f, 0.05f, 1f);
@@ -833,7 +835,7 @@ namespace Lanternkeeper.View
             Changed();
         }
 
-        const float UndoW = 150f;
+        const float UndoW = 104f;
 
         /// <summary>"되돌리기: 새 → 옛" on the button itself, the two names cut with … until the line fits (loop 2 #17).</summary>
         string UndoButtonText()

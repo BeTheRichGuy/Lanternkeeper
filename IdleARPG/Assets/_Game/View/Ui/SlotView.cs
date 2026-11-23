@@ -78,7 +78,9 @@ namespace Lanternkeeper.View
             }
             for (int i = 0; i < 3; i++) _sockets[i] = UiKit.Fill(Root, "socket", w - 7f, iy + 2f + i * 5f, 3f, 3f, Color.clear);
             _stars = UiKit.Label(Root, "", io - 2f, iy + 20f, 36f, 12f, 12, TextAnchor.LowerLeft, new Color(1f, 0.81f, 0.35f));
-            _badge = UiKit.Label(Root, "", io, iy - 3f, 34f, 12f, 12, TextAnchor.UpperRight, UiKit.Good);
+            // 2 px inside the cell's right edge and a size smaller (critique 6: in the 명조 set ⇄ came from a wider fallback
+            // font and stuck out of the cell).
+            _badge = UiKit.Label(Root, "", io - 4f, iy - 2f, 32f, 12f, 11, TextAnchor.UpperRight, UiKit.Good);
             _badge.horizontalOverflow = HorizontalWrapMode.Overflow; // ▲▲ on a 30 px cell must not wrap under itself
             _badgeOutline = _badge.gameObject.AddComponent<Outline>(); // for ═: grey on the wash of a cell vanished (loop 2 #17)
             _badgeOutline.effectColor = Color.black;

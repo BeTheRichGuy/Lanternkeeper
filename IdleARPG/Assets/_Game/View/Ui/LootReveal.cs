@@ -16,7 +16,7 @@ namespace Lanternkeeper.View
     /// </summary>
     public sealed class LootReveal
     {
-        const float W = 440f, H = 132f, Hold = 4.2f, In = 0.18f, Out = 0.45f;
+        const float W = 440f, H = 156f, Hold = 4.2f, In = 0.18f, Out = 0.45f;
         /// <summary>When the card follows the drop: the shaft's arc and lie (DropView: 0.35 s + 2.6 s for a jackpot).</summary>
         const float Delay = 2.6f;
         readonly UiKit _ui;
@@ -52,11 +52,39 @@ namespace Lanternkeeper.View
             _name = UiKit.Label(_card, "", 112f, 30f, W - 124f, 24f, 20, TextAnchor.UpperLeft, Color.white, title: true);
             _base = UiKit.Label(_card, "", 112f, 58f, W - 124f, 30f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             _power = UiKit.Label(_card, "", 112f, 76f, W - 124f, 32f, 12, TextAnchor.UpperLeft, new Color(0.85f, 0.66f, 0.36f));
-            _verdict = UiKit.Label(_card, "", 112f, H - 22f, W - 124f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _verdict = UiKit.Label(_card, "", 112f, H - 48f, W - 124f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _verdict.horizontalOverflow = HorizontalWrapMode.Overflow;
+            // Critique 6: "정보는 맞지만 알림창처럼 보여 흥분이 없다" — a light sweeps across the card as it lands, the name
+            // and the item pop, and the card offers the two things a player wants next: wear it, or look at it.
+            var clip = UiKit.Rect(_card, "shine clip", 0f, 0f, W, H);
+            clip.gameObject.AddComponent<RectMask2D>();
+            _shine = UiKit.Fill(clip, "shine", -60f, 0f, 46f, H, new Color(1f, 0.95f, 0.8f, 0f));
+            _shine.sprite = UiKit.Glow(ui, 64);
+            _equip = ui.Button(_card, "장착", W - 176f, H - 28f, 76f, 22f, Equip);
+            _look = ui.Button(_card, "가방에서 보기", W - 96f, H - 28f, 84f, 22f, () => { _t = Mathf.Max(_t, Hold + In); OnOpenBag?.Invoke(); });
+            _look.GetComponentInChildren<Text>().fontSize = 11;
             var p = _card.gameObject.AddComponent<UiPointer>();
             p.LeftClick = () => { _t = Mathf.Max(_t, Hold + In); OnOpenBag?.Invoke(); };
+            p.Enter = () => _hover = true; // the card stays while the pointer reads it
+            p.Exit = () => _hover = false;
             _card.gameObject.SetActive(false);
         }
+
+        readonly Image _shine;
+        readonly Button _equip, _look;
+        SimWorld _world;
+        bool _hover;
+
+        void Equip()
+        {
+            if (_world == null || _shown == null || !_world.EquipFromBag(_shown.Uid)) return;
+            _verdict.text = "<color=#9fd28a>착용했습니다</color>";
+            _equip.gameObject.SetActive(false);
+            OnEquipped?.Invoke();
+        }
+
+        /// <summary>Raised after the card's 장착 so the game saves soon.</summary>
+        public Action OnEquipped;
 
         /// <summary>Takes this tick's drops; a legendary or unique gets a card once its shaft has stood a moment.</summary>
         public void OnTick(List<SimEvent> events)
@@ -75,8 +103,16 @@ namespace Lanternkeeper.View
                 if (hidden || _queue.Count == 0 || _queue.Peek().at > Time.unscaledTime) { _card.gameObject.SetActive(false); return; }
                 Show(world, _queue.Dequeue().item);
             }
-            _t += dt;
+            if (!(_hover && _t > In && _t < In + Hold)) _t += dt;
             float a = _t < In ? _t / In : _t < In + Hold ? 1f : 1f - (_t - In - Hold) / Out;
+            // The sweep: once across, 0.15–0.75 s; the name and the item pop with it.
+            float sweep = Mathf.Clamp01((_t - 0.15f) / 0.6f);
+            _shine.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-60f, W + 20f, sweep), 0f);
+            _shine.color = new Color(1f, 0.95f, 0.8f, sweep > 0f && sweep < 1f ? 0.35f : 0f);
+            float pop = _t < 0.12f ? Mathf.Lerp(0.6f, 1.15f, _t / 0.12f) : _t < 0.3f ? Mathf.Lerp(1.15f, 1f, (_t - 0.12f) / 0.18f) : 1f;
+            _icon.rectTransform.localScale = new Vector3(pop, pop, 1f);
+            float namePop = _t < 0.25f ? Mathf.Lerp(1.2f, 1f, _t / 0.25f) : 1f;
+            _name.rectTransform.localScale = new Vector3(namePop, namePop, 1f);
             if (a <= 0f && _t > In) { _shown = null; _card.gameObject.SetActive(false); return; }
             _group.alpha = hidden ? 0f : Mathf.Clamp01(a);
             _group.blocksRaycasts = !hidden;
@@ -90,7 +126,9 @@ namespace Lanternkeeper.View
         void Show(SimWorld world, Item it)
         {
             _shown = it;
+            _world = world;
             _t = 0f;
+            _hover = false;
             _card.gameObject.SetActive(true);
             _card.SetAsLastSibling(); // over the HUD; a window opened later rises over it
             var c = ItemStyle.Color(it.Rarity);
@@ -112,11 +150,17 @@ namespace Lanternkeeper.View
             if (lore) _base.text += "\n<color=#9a8a6a>“" + u.Flavor + "”</color>";
             float extra = lore ? 17f : 0f; // the lore line pushes the power and the verdict down, the card grows
             _power.rectTransform.anchoredPosition = new Vector2(112f, -(76f + extra));
-            _verdict.rectTransform.anchoredPosition = new Vector2(112f, -(H - 22f + extra));
+            _verdict.rectTransform.anchoredPosition = new Vector2(112f, -(H - 48f + extra));
             _card.sizeDelta = new Vector2(W, H + extra);
             _frame.rectTransform.sizeDelta = new Vector2(W + 6f, H + 6f + extra);
             _edgeBottom.rectTransform.anchoredPosition = new Vector2(0f, -(H - 2f + extra));
             _verdict.text = Verdict(world, it);
+            // 장착 only where it can be worn now and is not worn yet; the bag button always.
+            bool inBag = world.Bag.Items.Contains(it);
+            _equip.gameObject.SetActive(inBag && HeroStats.Compare(world.Hero, it).Arrow != GearArrow.Locked);
+            var lift = _card.sizeDelta.y - H; // a lore line pushed the foot down
+            ((RectTransform)_equip.transform).anchoredPosition = new Vector2(W - 176f, -(H - 28f + lift));
+            ((RectTransform)_look.transform).anchoredPosition = new Vector2(W - 96f, -(H - 28f + lift));
         }
 
         /// <summary>What the find means now: worn already (auto-equip took it), better, a trade, or kept for later.</summary>
@@ -129,12 +173,14 @@ namespace Lanternkeeper.View
             float pct = (cmp.Power - 1f) * 100f;
             switch (cmp.Arrow)
             {
-                case GearArrow.BigUp: case GearArrow.Up: return "<color=#5BD66B>▲ 전투력 +" + pct.ToString("0") + "%</color> · 가방에서 클릭해 착용";
-                case GearArrow.Trade: return "<color=#FFD24D>⇄ 교환</color> · 공격과 생존 중 하나가 바뀝니다 · 가방에서 비교";
-                case GearArrow.Locked: return "<color=#8a8178>요구 레벨 " + it.ReqLevel + " · 가방에 보관했습니다</color>";
+                case GearArrow.BigUp: case GearArrow.Up: return "<color=#5BD66B>▲ 전투력 +" + pct.ToString("0") + "%</color>  <color=#8a8178>공격 " + Signed(cmp.Offence) + " · 생존 " + Signed(cmp.Survival) + "</color>";
+                case GearArrow.Trade: return "<color=#FFD24D>⇄ 교환</color>  <color=#8a8178>공격 " + Signed(cmp.Offence) + " · 생존 " + Signed(cmp.Survival) + "</color>";
+                case GearArrow.Locked: return "<color=#8a8178>" + (HeroStats.FitsClass(it, h.ClassId) ? "요구 레벨 " + it.ReqLevel : "다른 직업 전용") + " · 가방에 보관했습니다</color>";
                 default: return "<color=#8a8178>지금 장비가 더 낫습니다 · 가방에 보관했습니다</color>";
             }
         }
+
+        static string Signed(float ratio) { float v = (ratio - 1f) * 100f; return (v >= 0f ? "+" : "−") + Mathf.Abs(v).ToString("0") + "%"; }
 
         /// <summary>True the first time this unique is ever found on this machine (kept per player, not per character).</summary>
         static bool FirstFind(string name)

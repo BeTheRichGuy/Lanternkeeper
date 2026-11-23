@@ -122,6 +122,14 @@ namespace Lanternkeeper.View
 
         void Spawn(Vec2 at, float value, Color color, bool big, int target)
         {
+            // Critique 6 P0: numbers printed over the top HUD lines, the right-hand menu and the bottom bar. A hit whose spot
+            // lies in those bands shows no number (the HUD's text wins there).
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                var vp = cam.WorldToViewportPoint(_root.TransformPoint(IsoProjection.ToWorld(at) + new Vector3(0f, 0.85f, 0f)));
+                if (vp.y > 0.84f || vp.y < 0.2f || vp.x > 0.92f || vp.x < 0.02f) return; // 0.84: room for the rise under the top lines
+            }
             // Merge into the number already counting on this target (a quick flurry reads as one rising total).
             // What the hero takes never mixes with what it deals.
             bool onHero = target == _heroId;
@@ -189,6 +197,7 @@ namespace Lanternkeeper.View
 
         public void Render(float dt)
         {
+            var cam = Camera.main;
             foreach (var n in _nums)
             {
                 if (n.T >= n.Life) continue;
@@ -207,6 +216,14 @@ namespace Lanternkeeper.View
                 var c = n.Color;
                 c.a = k < 0.7f ? 1f : 1f - (k - 0.7f) / 0.3f;
                 if (n.Text.color != c) { n.Text.color = c; n.Shadow.color = new Color(0.03f, 0.02f, 0.03f, c.a * 0.85f); }
+                // The HUD bands win wherever the number is now: the camera follows the hero, so a number born mid-screen
+                // can slide under the top lines or the menu while it lives (capture 11-24 05:26).
+                if (cam != null)
+                {
+                    var vp = cam.WorldToViewportPoint(n.Text.transform.position);
+                    bool show = vp.y <= 0.88f && vp.y >= 0.18f && vp.x <= 0.92f && vp.x >= 0.02f;
+                    if (n.Mr.enabled != show) n.Mr.enabled = n.ShadowMr.enabled = show;
+                }
             }
         }
     }

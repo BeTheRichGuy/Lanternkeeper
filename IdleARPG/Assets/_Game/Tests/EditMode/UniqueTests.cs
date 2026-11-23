@@ -176,5 +176,36 @@ namespace Lanternkeeper.Tests
             Assert.That(back.UniqueId, Is.EqualTo(def.Id));
             Assert.That(back.EssenceId, Is.EqualTo(def.EssenceId));
         }
+
+        [Test]
+        public void Another_classes_unique_is_never_worn_and_comes_off_on_load()
+        {
+            // 11-24: a 별점술사 save had auto-equipped the 잿불기사's 묘지기의 맹세.
+            var a = new SimWorld(7, "starseer");
+            var axe = ItemGen.Roll(new SimRng(5), 902, 30, Rarity.Unique, null, 0f, "ashknight");
+            Assert.That(HeroStats.FitsClass(axe, "starseer"), Is.False);
+            Assert.That(HeroStats.Compare(a.Hero, axe).Arrow, Is.EqualTo(GearArrow.Locked)); // auto-equip takes ▲ only
+            a.Bag.Add(axe);
+            Assert.That(a.EquipFromBag(902), Is.False);
+            // An older save wore it: loading takes it off into the bag.
+            a.Bag.Items.Remove(axe);
+            a.Hero.Gear.Equip(axe, HeroStats.Compare(a.Hero, axe).Spot);
+            var b = SimWorld.FromSave(a.ToSave());
+            Assert.That(Array.IndexOf(b.Hero.Gear.Spots, b.FindInBag(902)), Is.EqualTo(-1));
+            Assert.That(b.FindInBag(902), Is.Not.Null);
+        }
+
+        [Test]
+        public void Bulk_salvage_takes_another_classes_unique_but_keeps_your_own()
+        {
+            var w = new SimWorld(8, "starseer");
+            var theirs = ItemGen.Roll(new SimRng(6), 903, 30, Rarity.Unique, null, 0f, "ashknight");
+            var mine = ItemGen.Roll(new SimRng(7), 904, 30, Rarity.Unique, null, 0f, "starseer");
+            w.Bag.Add(theirs);
+            w.Bag.Add(mine);
+            Assert.That(w.SalvageAll(), Is.EqualTo(1));
+            Assert.That(w.FindInBag(903), Is.Null);
+            Assert.That(w.FindInBag(904), Is.Not.Null);
+        }
     }
 }

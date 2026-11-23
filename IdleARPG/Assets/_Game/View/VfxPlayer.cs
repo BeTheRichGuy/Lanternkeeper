@@ -169,11 +169,31 @@ namespace Lanternkeeper.View
             return _rampMats[i] = m;
         }
 
+        readonly Dictionary<string, string[]> _variants = new Dictionary<string, string[]>();
+
+        /// <summary>
+        /// 11-24 redraw: a sheet drawn in variants (<c>id</c>, <c>id_b</c>, <c>id_c</c>) shows one of them at random, so a
+        /// flurry of sparks or blood never repeats the same shape twice in a row.
+        /// </summary>
+        string Variant(string id)
+        {
+            if (!_variants.TryGetValue(id, out var all))
+            {
+                var found = new List<string> { id };
+                foreach (var suffix in new[] { "_b", "_c", "_d" })
+                    foreach (var layer in new[] { "front", "whole", "behind" })
+                        if (_catalog.TryGetClip("vfx/" + id + suffix + "/" + layer, out _, out _, out _)) { found.Add(id + suffix); break; }
+                _variants[id] = all = found.ToArray();
+            }
+            return all.Length == 1 ? id : all[Random.Range(0, all.Length)];
+        }
+
         public bool Spawn(string id, Vec2 cell, float scale = 1f, Color? tint = null, float rotationDeg = 0f, bool flipX = false,
             float holdSeconds = 0f, bool important = false, Vector2 stretch = default, bool followHero = false, bool ground = false,
             Element recolor = Element.None)
         {
             if (!important && _spentThisTick >= BudgetPerTick) return false;
+            id = Variant(id);
             var world = IsoProjection.ToWorld(cell);
             // Hierarchy: the sheet's drawn width decides how much room it may take.
             float alphaMul = 1f, width = 0f;

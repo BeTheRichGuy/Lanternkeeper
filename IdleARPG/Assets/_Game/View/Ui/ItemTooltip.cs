@@ -87,7 +87,8 @@ namespace Lanternkeeper.View
             sb.Clear();
             if (compare is GearCompare c)
             {
-                if (c.Arrow == GearArrow.Locked) sb.Append("<color=").Append(ItemStyle.LossHex).Append(">Lv ").Append(item.ReqLevel).Append(" 필요</color>");
+                if (c.Arrow == GearArrow.Locked)
+                    sb.Append("<color=").Append(ItemStyle.LossHex).Append(">").Append(IsOtherClass(item) ? "다른 직업 전용" : "Lv " + item.ReqLevel + " 필요").Append("</color>");
                 else sb.Append(ItemStyle.Verdict(c, EffectName(item.Rarity)));
                 sb.Append("\n<color=").Append(Dim).Append(">↔ ");
                 string spot = item.Slot == Slot.Ring ? (c.Spot == EquipSpot.Ring2 ? "반지 2" : "반지 1") : null;
@@ -201,6 +202,10 @@ namespace Lanternkeeper.View
         }
 
         /// <summary>"전설 효과" or "고유 효과": the line's head follows the item's own rarity (loop 1: a 고유 said 전설).</summary>
+        /// <summary>The class of the hero the tooltips compare against (set by the bag before it shows one).</summary>
+        public static string HeroClass;
+        static bool IsOtherClass(Item item) => HeroClass != null && !HeroStats.FitsClass(item, HeroClass);
+
         public static string EffectName(Rarity r) => r == Rarity.Unique ? "고유 효과" : "전설 효과";
 
         static string Change(Stat s, float now, float before)

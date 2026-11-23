@@ -205,13 +205,24 @@ namespace Lanternkeeper.View
 
         void CardButton(string text, float x, float y, float w, int which, bool enabled)
         {
-            var b = _ui.Button(_detail, text, x, y, w, 19f, () => Buy(which));
+            // Critique 6 #8: "name · effect" on the left, the price on the right (one run-on line read as a sentence).
+            int at = text.IndexOf(" · 잿 파편", StringComparison.Ordinal);
+            string left = at >= 0 ? text.Substring(0, at) : text, price = at >= 0 ? text.Substring(at + 3) : null;
+            var b = _ui.Button(_detail, left, x, y, w, 21f, () => Buy(which));
             b.interactable = enabled;
             // A refused button reads as a dark bar with light text (grey on grey was unreadable) and says why in its words.
             var cb = b.colors;
             cb.disabledColor = new Color(0.102f, 0.102f, 0.102f, 1f);
             b.colors = cb;
-            b.GetComponentInChildren<Text>().color = enabled ? UiKit.Gold : new Color(0.69f, 0.69f, 0.69f);
+            var label = b.GetComponentInChildren<Text>();
+            label.color = enabled ? UiKit.Gold : new Color(0.69f, 0.69f, 0.69f);
+            if (price != null)
+            {
+                label.alignment = TextAnchor.MiddleLeft;
+                label.rectTransform.offsetMin = new Vector2(10f, label.rectTransform.offsetMin.y);
+                var cost = UiKit.Label(b.transform, price, 0f, 3f, w - 10f, 16f, 12, TextAnchor.UpperRight, enabled ? new Color(0.86f, 0.8f, 0.66f) : new Color(0.55f, 0.55f, 0.55f));
+                cost.horizontalOverflow = HorizontalWrapMode.Overflow;
+            }
             _cardBits.Add(b.gameObject);
         }
 

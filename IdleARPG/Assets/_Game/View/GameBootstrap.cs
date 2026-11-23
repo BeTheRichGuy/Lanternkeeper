@@ -144,6 +144,7 @@ namespace Lanternkeeper.View
             _eventPrompt = new EventPrompt(_ui); // UX plan D7: the event's choices as a box over the windows
             _reveal = new LootReveal(_ui); // 11-24: a legendary or unique find gets its own card
             _reveal.OnOpenBag = () => { if (!_gear.Visible) OpenFromMenu(0); };
+            _reveal.OnEquipped = () => _saveSoon = true;
             if (report != null && !report.Empty)
             {
                 _offline.Show(report, World);
@@ -585,6 +586,7 @@ namespace Lanternkeeper.View
             _clock.Step(dt * simSpeed, _tick);
             _view.Render(_clock.Alpha, dt);
             _hud.Render(Time.deltaTime);
+            _hudBar.SetWindowOpen(_anyWindowWas || _character.Visible);
             _hudBar.Render(Time.unscaledDeltaTime);
             _minimap.Render(World.Hero.Pos);
             _cutIn.Render(Time.unscaledDeltaTime);
@@ -600,7 +602,8 @@ namespace Lanternkeeper.View
             _hunt.Update(World, Time.unscaledDeltaTime, !_uiHidden && !_offline.Visible && !_classSelect.Visible && !reading);
             _tips.Hidden = _uiHidden || _offline.Visible || _classSelect.Visible || _augment.Visible;
             _tips.Render(Time.unscaledDeltaTime);
-            _eventPrompt.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible);
+            // Under an open window it waits (critique 6: the box lay over the skill card); its own timer still picks the default.
+            _eventPrompt.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible || _anyWindowWas || _character.Visible);
             _reveal.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible || _anyWindowWas || _character.Visible); // never over a window
             _banner.Update(Time.unscaledDeltaTime);
 

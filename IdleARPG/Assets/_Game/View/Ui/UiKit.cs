@@ -161,8 +161,9 @@ namespace Lanternkeeper.View
             var frame = bone ? Sprite(win, key, -8f, -16f, w + 16f, h + 24f, sliced: true) : Sprite(win, key, -4f, -4f, w + 8f, h + 8f, sliced: true);
             frame.preserveAspect = false;
             if (bone) { frame.type = Image.Type.Tiled; frame.fillCenter = false; } // the art's inside is not quite empty
-            Fill(win, "title band", 4f, 5f, w - 8f, 22f, new Color(1f, 0.85f, 0.55f, 0.06f));
-            titleText = Label(win, title, 12f, 9f, w - 60f, 20f, 16, TextAnchor.UpperLeft, Gold, title: true); // 3 px under the wax drips (loop 2)
+            Fill(win, "title band", 4f, 4f, w - 8f, 26f, new Color(1f, 0.85f, 0.55f, 0.06f));
+            // Inside its band (critique 7 P0: the 고운바탕 title's taller glyphs ran past the band into the body).
+            titleText = Label(win, title, 12f, 7f, w - 60f, 22f, 16, TextAnchor.UpperLeft, Gold, title: true);
             var close = Button(win, "×", w - 28f, 5f, 20f, 18f, onClose);
             close.GetComponentInChildren<Text>().fontSize = 12;
             return win;

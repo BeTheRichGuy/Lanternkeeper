@@ -124,7 +124,8 @@ namespace Lanternkeeper.View
             lp.LeftClick = () => _world.Ignite();
             _lifeText = UiKit.Label(_lifeOrb, "", -24f, -14f, Orb + 48f, 12f, 12, TextAnchor.UpperCenter, new Color(1f, 0.72f, 0.68f));
             // Above the drop icons, apart from the life number: right over "720 / 720" it read as that number's gauge (loop 3).
-            _igniteText = UiKit.Label(_lifeOrb, "", -24f, -84f, Orb + 48f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+            // Over the "최근 획득" row, not on it (critique 6: the three drops read as part of the ignite line).
+            _igniteText = UiKit.Label(_lifeOrb, "", -24f, -104f, Orb + 48f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
 
             // the wax cup, right of the bar: its molten wax is the resonance gauge
             _waxOrb = UiKit.Rect(_bar, "wax orb", BarW + 2f, 0f, Orb, Orb);
@@ -149,7 +150,9 @@ namespace Lanternkeeper.View
             UiKit.Fill(_bar, "heat back", HeatX, SlotY - 5f, HeatW, 3f, new Color(0f, 0f, 0f, 0.6f));
             _heat = UiKit.Fill(_bar, "heat", HeatX, SlotY - 5f, HeatW, 2f, Color.white);
             // The bar's name, as the class card says it (loop 4: "자원 열기" on the card, an unnamed line here).
-            UiKit.Label(_bar, ClassSelectPanel.ResourceOf(world.Hero.ClassId), HeatX + HeatW + 4f, SlotY - 10f, 40f, 10f, 8, TextAnchor.UpperLeft, UiKit.Dim);
+            // 11 px and readable ink (critique 6 P0: at 8 px in the 명조 set it was an unreadable smudge).
+            // Centred over the bar, clear of the corner candles (critique 7 P0: at the bar's right end the wax hid it).
+            UiKit.Label(_bar, ClassSelectPanel.ResourceOf(world.Hero.ClassId), HeatX + HeatW / 2f - 40f, SlotY - 19f, 80f, 13f, 11, TextAnchor.UpperCenter, new Color(0.85f, 0.8f, 0.7f));
 
             for (int i = 0; i < 4; i++)
             {
@@ -170,13 +173,15 @@ namespace Lanternkeeper.View
                 _frame[i].raycastTarget = true;
                 _sigil[i] = ui.Sprite(_bar, "ui/dot", x + Slot - 15f, y - 3f, 14f, 14f);
                 _lvBar[i] = UiKit.Fill(_bar, "practice", x + 6f, y + SlotH - 3f, 0f, 2f, new Color(0.6f, 0.8f, 1f, 0.9f));
-                _lv[i] = UiKit.Label(_bar, "", x, y + SlotH - 16f, Slot - 4f, 12f, 8, TextAnchor.LowerRight, UiKit.Ink);
+                _lv[i] = UiKit.Label(_bar, "", x, y + SlotH - 19f, Slot - 7f, 14f, 11, TextAnchor.LowerRight, UiKit.Ink); // readable (critique 7 P0: 8 px on the corner art)
+                _lv[i].gameObject.AddComponent<Outline>().effectColor = Color.black;
                 var hit = _frame[i].gameObject.AddComponent<UiPointer>();
                 hit.Enter = () => _hoverSkill = slot;
                 hit.Exit = () => { if (_hoverSkill == slot) _hoverSkill = -1; };
             }
 
-            // last three drops, over the heart
+            // last three drops, over the heart, named (critique 6: three unnamed squares)
+            _dropsLabel = UiKit.Label(_bar, "최근 획득", -Orb + 8f, -82f, 120f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
             _tip = new ItemTooltip(ui, "hud drop tip");
             for (int i = 0; i < 3; i++)
             {
@@ -248,6 +253,10 @@ namespace Lanternkeeper.View
                 UiKit.Label(back.transform, Menu[i].key, B - kw + 1f, -2f, kw, 10f, 8, TextAnchor.UpperCenter, UiKit.Gold);
                 var tag = UiKit.Label(_menu, Menu[i].tag, 0f, i * (B + G) + 9f, TagW, 12f, 8, TextAnchor.UpperRight, UiKit.Dim);
                 tag.horizontalOverflow = HorizontalWrapMode.Overflow;
+                // A dark plate under the name (critique 6 P0: the names floated unreadably over the monsters).
+                float tw = Mathf.Ceil(tag.preferredWidth) + 8f;
+                var plate = UiKit.Fill(_menu, "tag back", TagW - tw + 4f, i * (B + G) + 7f, tw, 16f, new Color(0.03f, 0.025f, 0.03f, 0.75f));
+                plate.transform.SetSiblingIndex(tag.transform.GetSiblingIndex());
                 var p = back.gameObject.AddComponent<UiPointer>();
                 p.Enter = () => { hover.enabled = true; _hoverMenu = index; };
                 p.Exit = () => { hover.enabled = false; if (_hoverMenu == index) _hoverMenu = -1; };
@@ -270,6 +279,18 @@ namespace Lanternkeeper.View
         }
 
         public bool Visible { get => _root.gameObject.activeSelf; set { _root.gameObject.SetActive(value); _navLayer.gameObject.SetActive(value); } }
+
+        /// <summary>
+        /// While a window is open the orbs' side lines step back (critique 6 P0: window edges cut "점화 가능 [S", "785 / 7"
+        /// in half). The orbs and the skill bar stay.
+        /// </summary>
+        Text _dropsLabel;
+
+        public void SetWindowOpen(bool open)
+        {
+            _igniteText.enabled = _lifeText.enabled = _waxText.enabled = _dropsLabel.enabled = !open;
+            foreach (var d in _drops) if (d.Root.gameObject.activeSelf == open) d.Root.gameObject.SetActive(!open); // the icons too (critique 7 P0)
+        }
 
         public void Render(float dt)
         {
@@ -368,7 +389,7 @@ namespace Lanternkeeper.View
             tint.a = 1f;
             _wax.color = tint;
             int waxKey = Mathf.FloorToInt(g * 100f);
-            if (waxKey != _waxKey) { _waxKey = waxKey; _waxText.text = "공명 " + waxKey + "%"; }
+            if (waxKey != _waxKey) { _waxKey = waxKey; _waxText.text = "대공명 " + waxKey + "%"; } // the gauge toward 대공명 (critique 7: "공명" here and "공명 0개" in the ring meant two things)
             _heat.rectTransform.sizeDelta = new Vector2(Mathf.Round(HeatW * Mathf.Clamp01(h.Heat / SimWorld.HeatMax)), 2f);
             _heat.color = h.ClassId == "oathknight" ? new Color(1f, 0.85f, 0.4f, 0.9f) : h.ClassId == "windhunter" ? new Color(0.55f, 0.95f, 0.75f, 0.9f)
                 : h.ClassId == "starseer" ? new Color(0.65f, 0.6f, 1f, 0.9f) : new Color(1f, 0.45f, 0.15f, 0.9f);
