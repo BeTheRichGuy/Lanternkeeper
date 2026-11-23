@@ -156,6 +156,9 @@ namespace Lanternkeeper.View
                 var ess = ItemData.Essence(item.EssenceId);
                 if (ess != null) sb.Append("<color=").Append(ItemStyle.Hex(item.Rarity)).Append(">").Append(EffectName(item.Rarity)).Append("</color><color=").Append(Body).Append(">: ").Append(ess.Text).Append("</color>\n");
             }
+            // A unique's lore line under its power, in the muted gold of old ink (11-24, D2's flavour text).
+            var u = item.Rarity == Rarity.Unique && !string.IsNullOrEmpty(item.UniqueId) ? ItemData.Unique(item.UniqueId) : null;
+            if (u != null && !string.IsNullOrEmpty(u.Flavor)) sb.Append("<color=#9a8a6a>“").Append(u.Flavor).Append("”</color>\n");
             var rw = item.Runeword;
             if (rw != null) sb.Append("<color=#FFFFFF>룬어 『").Append(rw.Name).Append("』</color><color=").Append(Body).Append(">: ").Append(rw.Text).Append("</color>\n");
             _extra.text = sb.ToString().TrimEnd('\n');

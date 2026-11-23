@@ -475,7 +475,7 @@ namespace Lanternkeeper.View
         const float RingSheetWidth = 120f / 64f;
 
         /// <summary>
-        /// The element's drawn floor ring, <paramref name="width"/> world units across; false where none suits. At most five
+        /// The element's drawn floor ring (<paramref name="width"/> is the area it stands for); false where none suits. At most two
         /// in any 0.7 s: a drawn ring lingers 1.1 s (the flat band 0.4 s), and arrow rain landing in a boss room stacked
         /// 28 of them into one gold slab (editor check 11-23). Over the cap the caller draws nothing - its sparks and dust
         /// still mark the blow.
@@ -488,14 +488,15 @@ namespace Lanternkeeper.View
             int slot = 0;
             for (int i = 1; i < _ringAt.Length; i++) if (_ringAt[i] < _ringAt[slot]) slot = i;
             if (Time.time - _ringAt[slot] < 0.7f) { capped = true; return false; }
-            // No more than twice the art size: at 2.7× its pixels turned to 3×3 blocks and its fading arcs to loose dashes.
-            if (!Sheet(sheet, cell, Mathf.Min(2f, width / RingSheetWidth), false, true, Element.None)) return false;
+            // At its art size, like the units (audit 11-24: doubled, three of them lay as fat white hoops under one pack);
+            // the area a cast covers shows in its sparks and dust, the ring marks where it burst.
+            if (!Sheet(sheet, cell, 1f, false, true, Element.None)) return false;
             _ringAt[slot] = Time.time;
             return true;
         }
 
-        readonly float[] _ringAt = { -9f, -9f, -9f, -9f, -9f };
-        float _impactReadyAt;
+        readonly float[] _ringAt = { -9f, -9f }; // two drawn rings in any 0.7 s
+        float _impactReadyAt, _markReadyAt;
 
         /// <summary>An impact frame at most every 4 s: rarer is what keeps it a punch.</summary>
         public void Punch(Color color, float seconds = 0.07f)
@@ -579,13 +580,15 @@ namespace Lanternkeeper.View
                 if (n++ >= 48) break;
                 var floor = Floor(e.Pos);
                 float body = e.Boss ? 0.8f : 0.4f;
-                if (e.BurnTicks > 0 && Random.value < 0.7f)
+                // Audit 11-24: a frost build kept every monster shedding specks ten times a second (2,100 particles at once,
+                // "noisy blue specks over a blob"); the status reads from the drawn loop on the body, these only hint at it.
+                if (e.BurnTicks > 0 && Random.value < 0.3f)
                     Parts.Emit(PxKind.Ember, floor + Random.insideUnitCircle * 0.15f, body * (0.5f + Random.value), Random.insideUnitCircle * 0.2f, 0.7f + Random.value * 0.6f, 0.5f + Random.value * 0.4f, Random.value < 0.25f ? 2f : 1f, PixelRamp.Ember, -0.5f);
-                if (e.FreezeUntil > now && Random.value < 0.5f)
+                if (e.FreezeUntil > now && Random.value < 0.12f)
                     Parts.Emit(PxKind.Shard, floor + Random.insideUnitCircle * 0.18f, body * (0.3f + Random.value), Vector2.zero, 0.15f, 0.35f, 1f + Random.value * 2f, PixelRamp.Frost);
-                if (e.DotTicks > 0 && Random.value < 0.35f)
+                if (e.DotTicks > 0 && Random.value < 0.15f)
                     Parts.Emit(PxKind.Smoke, floor + Random.insideUnitCircle * 0.15f, body * 0.6f, Random.insideUnitCircle * 0.1f, 0.25f, 0.8f, 3f + Random.value * 2f, PixelRamp.Rot);
-                if (e.Mark != Element.None && Random.value < 0.3f)
+                if (e.Mark != Element.None && Random.value < 0.12f)
                 {
                     float a = Random.value * Mathf.PI * 2f;
                     Parts.Emit(PxKind.Ember, floor + Iso(Mathf.Cos(a), Mathf.Sin(a)) * 0.7f, 0.04f, Vector2.zero, 0.35f, 0.55f, 1f, PixelRamp.Of(e.Mark), -0.1f);
@@ -773,7 +776,9 @@ namespace Lanternkeeper.View
             if (!byHero) tier = 0;
             var ramp = RampOf(ev.Elem);
             var dir = BlowDirs.For(ev, _world.Hero.Pos); // the blow's way: everything thrown off flies on behind the enemy
-            if (_hits > 14) { Sparks(ev.Pos, ramp, 2, 2.2f, 0.16f, dir); return; } // a crowd of hits: a spark each, nothing more
+            // A crowd of hits: the first six of a tick are drawn in full, the rest a spark each (14 kept a pack under a
+            // sheet of flares, audit 11-24).
+            if (_hits > 6) { if (_hits <= 16) Sparks(ev.Pos, ramp, 2, 2.2f, 0.16f, dir); return; }
             float flare = tier == 2 ? 1.15f : tier == 1 ? 0.8f : 0.55f;
             Burst(ev.Pos, ramp, flare, tier == 2 ? 12 : tier == 1 ? 7 : 4, tier == 2 ? 0.24f : tier == 1 ? 0.18f : 0.14f,
                 spikes: ev.Elem == Element.Shock ? 6f : 4f, dir: dir);
@@ -900,7 +905,7 @@ namespace Lanternkeeper.View
 
         void Death(in SimEvent ev)
         {
-            if (_deaths++ >= 8) return;
+            if (_deaths++ >= 5) return;
             var ramp = RampOf(ev.KillElem);
             var dir = BlowDirs.For(ev, _world.Hero.Pos); // the killing blow's way: the body bursts on along it
             var floor = Floor(ev.Pos);
@@ -946,9 +951,9 @@ namespace Lanternkeeper.View
                 Debris(ev.Pos, PixelRamp.Ash, 3, 1.1f, 0.3f, dir);
             }
             // 고어: the body bursts into chunks that bounce and lie a moment (thrown on the way the blow went).
-            if (GameSettings.Blood) Debris(ev.Pos, PixelRamp.Blood, 6, 1.6f, 0.4f, dir);
+            if (GameSettings.Blood) Debris(ev.Pos, PixelRamp.Blood, 3, 1.6f, 0.4f, dir);
             // …and a drawn splat (PVFX blood-splat sprays right from its root): thrown on past the body, a few a tick.
-            if (GameSettings.Blood && _splats++ < 3)
+            if (GameSettings.Blood && _splats++ < 1)
                 Sheet?.Invoke("pvfx_blood_splat", ev.Pos, 1f, dir.x < 0f, false, Element.None);
         }
 
@@ -1021,8 +1026,16 @@ namespace Lanternkeeper.View
                 if (big) Shapes.Add(FxShape.Ring, world, w * 0.7f, w * 0.35f, 0.5f, ramp, VfxPlayer.GroundOrder + 4, 1.7f, 0.4f, delay: 0.08f, alpha: drawnRing ? 0.6f : 1f);
             }
             Ripple?.Invoke(world, radius, big ? 0.6f : 0.42f, big ? 1f : 0.6f);
+            // Every element's burst leaves its mark a few seconds (rime, a charred star, a rot stain), not only fire's:
+            // the fight's trail on the floor is what dissipation looks like in an iso ARPG. One every 0.35 s.
+            if (ring && !blast && !debrisOnly && ramp != PixelRamp.Steel && Time.time >= _markReadyAt)
+            {
+                _markReadyAt = Time.time + 0.35f;
+                float mw = Mathf.Min(w * 0.6f, 2.4f);
+                Shapes.Add(FxShape.Scorch, world, mw, mw * 0.5f, 3f, ScorchOf(ramp), VfxPlayer.GroundOrder + 2, 1.4f, 0f, alpha: 0.4f);
+            }
             if (!debrisOnly) AddGlow(world, ramp.C[3], Mathf.Max(1.6f, w * 0.65f), big ? 0.5f : 0.38f);
-            int n = Mathf.Clamp(Mathf.RoundToInt(radius * (big ? 14f : 8f)), 10, big ? 60 : 32);
+            int n = Mathf.Clamp(Mathf.RoundToInt(radius * (big ? 10f : 5f)), 6, big ? 40 : 18);
             var floor = new Vector2(world.x, world.y);
             if (!debrisOnly)
             {

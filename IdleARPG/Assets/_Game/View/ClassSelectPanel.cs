@@ -91,7 +91,7 @@ namespace Lanternkeeper.View
                 _status[i] = UiKit.Label(card.transform, "새 캐릭터", 0f, 349f, CardW, 14f, 12, TextAnchor.UpperCenter, UiKit.Gold);
                 // UX plan F1: melee or ranged at a glance, and the forgiving class marked for a first character.
                 bool melee = HeroStats.IsMeleeClass(id);
-                UiKit.Label(card.transform, melee ? "근접" : "원거리", 8f, 8f, 60f, 14f, 12, TextAnchor.UpperLeft, melee ? new Color(1f, 0.6f, 0.4f) : new Color(0.55f, 0.8f, 1f));
+                UiKit.Label(card.transform, melee ? "근접" : "원거리", 14f, 12f, 60f, 14f, 12, TextAnchor.UpperLeft, melee ? new Color(1f, 0.6f, 0.4f) : new Color(0.55f, 0.8f, 1f));
                 // Both knights share the melee guard in the sim; the first-timer pick is the 잿불기사 for its self-heal (열기 흡수).
                 if (id == "ashknight") UiKit.Label(card.transform, "처음이면 추천\n열기 흡수로 회복해 잘 안 죽음", 10f, 372f, CardW - 20f, 44f, 12, TextAnchor.UpperCenter, new Color(0.62f, 0.86f, 0.55f));
                 var p = card.gameObject.AddComponent<UiPointer>();

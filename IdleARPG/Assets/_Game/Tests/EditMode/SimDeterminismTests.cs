@@ -7,7 +7,9 @@ namespace Lanternkeeper.Tests
     {
         // 2026-11-21: 기억의 나무 (skills unlock in the tree, 변형, evolution at 숙련 10) (was 4311340449841075782 for elite
         // prefixes; earlier 1110536597557234290 for runes, 3550800341123455142, …).
-        const ulong GoldenHash = 14917481850882282425UL; // auto-equip only ▲ (+1%, no trades) and first-life cards wait (UX plan A4/B7, 11-23)
+        // 11-24 고유·전설 확장: the run's one legendary (t891) now rolls from the 잿불기사's own powers (폭발하는, was 산산조각 내는);
+        // putting that one power back gives the old 14917481850882282425 exactly.
+        const ulong GoldenHash = 2265059884929124546UL;
         [Test]
         public void SimRng_same_seed_same_sequence()
         {

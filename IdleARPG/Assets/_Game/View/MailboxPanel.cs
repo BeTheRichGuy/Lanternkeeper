@@ -101,10 +101,11 @@ namespace Lanternkeeper.View
             {
                 if (y > H - 100f) break;
                 if (h.Letters.Contains(l.Id)) continue;
-                var hint = UiKit.Label(_list, "· " + l.Hint, 4f, y + 3f, ListW - 8f, 14f, 12, TextAnchor.UpperLeft, new Color(0.38f, 0.36f, 0.33f));
-                hint.horizontalOverflow = HorizontalWrapMode.Overflow;
+                // Locked hints wrap instead of running off the list (critique 5 P0); two lines at most.
+                var hint = UiKit.Label(_list, "· " + l.Hint, 4f, y + 3f, ListW - 8f, 30f, 12, TextAnchor.UpperLeft, new Color(0.5f, 0.47f, 0.43f));
+                hint.verticalOverflow = VerticalWrapMode.Truncate;
                 _rows.Add(hint.gameObject);
-                y += 20f;
+                y += hint.preferredHeight > 18f ? 34f : 20f;
             }
             if (opened.Count == 0) { _title.text = ""; _body.text = "<color=#8a8178>아직 남은 기록이 없습니다.</color>"; return; }
             var cur = opened[_sel];

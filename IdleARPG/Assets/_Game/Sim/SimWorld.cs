@@ -318,6 +318,7 @@ namespace Lanternkeeper.Sim
                 if (e?.Item != null && e.Spot >= 0 && e.Spot < h.Gear.Spots.Length && ItemData.HasBase(e.Item.BaseId))
                 {
                     ItemGen.AdoptForClass(e.Item, h.ClassId); // gear from before class bases becomes this class's
+                    ItemGen.AdoptUnique(e.Item); // a unique from before 11-24 gets its id and its own power
                     h.Gear.Spots[e.Spot] = e.Item;
                     maxUid = Math.Max(maxUid, e.Item.Uid);
                 }
@@ -329,7 +330,7 @@ namespace Lanternkeeper.Sim
             w._minuteKills0 = s.Kills;
             w.Bag.Items.Clear();
             foreach (var it in s.Bag)
-                if (it != null && ItemData.HasBase(it.BaseId)) { ItemGen.AdoptForClass(it, h.ClassId); w.Bag.Items.Add(it); maxUid = Math.Max(maxUid, it.Uid); }
+                if (it != null && ItemData.HasBase(it.BaseId)) { ItemGen.AdoptForClass(it, h.ClassId); ItemGen.AdoptUnique(it); w.Bag.Items.Add(it); maxUid = Math.Max(maxUid, it.Uid); }
             w.NextItemUid = Math.Max(Math.Max(1, s.NextItemUid), maxUid + 1); // never reuse a uid
             w._dropsTotal = 0;
             w.Bag.AshShards = s.AshShards;

@@ -12,7 +12,7 @@ namespace Lanternkeeper.View
     /// </summary>
     public sealed class CharacterPanel
     {
-        const float W = 420f, H = 590f; // as tall as the inventory beside it
+        const float W = 420f, H = 540f; // critique 5 P0: at 590 its foot covered the life orb and the skill bar
         readonly SimWorld _world;
         readonly RectTransform _win;
         readonly Text _title, _head, _dps, _hp, _left, _leftValues, _right, _rightValues, _explain;

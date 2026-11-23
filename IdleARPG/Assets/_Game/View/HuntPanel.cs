@@ -114,7 +114,8 @@ namespace Lanternkeeper.View
         public void OnTick(List<SimEvent> events)
         {
             foreach (var ev in events)
-                if (ev.Type == SimEventType.Drop && ev.Item != null && ItemStyle.IsJackpot(ev.Item) && _queue.Count < 3) _queue.Enqueue(ev.Item);
+                // 11-24: a legendary or unique has its own card (LootReveal); the banner keeps the ★ finds under them.
+                if (ev.Type == SimEventType.Drop && ev.Item != null && ItemStyle.IsJackpot(ev.Item) && ev.Item.Rarity < Rarity.Legendary && _queue.Count < 3) _queue.Enqueue(ev.Item);
         }
 
         public void Update(float dt)
@@ -130,7 +131,7 @@ namespace Lanternkeeper.View
                 _glow.color = new Color(col.r, col.g, col.b, 0f);
                 _t = 0f;
                 _root.gameObject.SetActive(true);
-                _root.SetAsLastSibling();
+                _root.SetSiblingIndex(0); // under every window (11-24: it printed over a window's title)
             }
             _t += dt;
             float a = _t < In ? _t / In : _t < In + Hold ? 1f : 1f - (_t - In - Hold) / Out;

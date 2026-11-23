@@ -113,7 +113,7 @@ namespace Lanternkeeper.View
               .Append("영웅은 혼자 층을 내려가며 싸웁니다. 내가 고르는 것은 두 가지,\n<color=#ffcf5a>무엇을 입을지</color>(가방 I)와 <color=#ffcf5a>스킬을 어떤 순서로 쓸지</color>(스킬 배치 R)입니다.\n")
               .Append("화면 위 '다음:' 줄이 지금 노릴 목표입니다.\n\n");
             sb.Append("<color=#ffd38a>2  장비 색과 화살표</color>\n")
-              .Append("<color=#c8c8c0>일반</color> < <color=#6fa0ff>마법</color> < <color=#ffe45c>희귀</color> < <color=#ff8c26>전설</color> < <color=#c77dff>고유</color>   위로 갈수록 드물고 옵션이 많습니다.\n")
+              .Append("<color=#c8c8c0>일반</color> < <color=#6fa0ff>마법</color> < <color=#ffe45c>희귀</color> < <color=#ff8c26>전설</color> < <color=#e0bc74>고유</color>   위로 갈수록 드물고 옵션이 많습니다.\n")
               .Append("내게 더 좋은지는 색이 아니라 화살표가 알려 줍니다:\n<color=#5bd66b>▲</color> 더 강함 · <color=#ff5a4d>▼</color> 더 약함 ·\n<color=#8a8178>═</color> 비슷함 · <color=#ffd24d>⇄</color> 공격과 생존을 맞바꿈.\n")
               .Append("더 좋은 장비(▲)는 자동으로 낍니다.\n\n");
             sb.Append("<color=#ffd38a>3  스킬 순서와 공명</color>\n")
@@ -121,7 +121,7 @@ namespace Lanternkeeper.View
               .Append("다음 칸이 순환 순서의 다음 원소면 <color=#cfe9b4>공명</color>이 터집니다.\n")
               .Append(SkillCard.Elem(Element.Ember)).Append(" → ").Append(SkillCard.Elem(Element.Frost)).Append(" → ").Append(SkillCard.Elem(Element.Shock))
               .Append(" → ").Append(SkillCard.Elem(Element.Rot)).Append(" → ").Append(SkillCard.Elem(Element.Void)).Append(" → 다시 ").Append(SkillCard.Elem(Element.Ember)).Append('\n')
-              .Append("스킬 배치(R) 왼쪽 아래 공명표에서 지금 배치가 무엇을 터뜨리는지 봅니다.");
+              .Append("스킬 배치(R)의 공명표 탭에서 원소 순서와 지금 배치가 무엇을 터뜨리는지 봅니다.");
             return sb.ToString();
         }
 
@@ -139,7 +139,7 @@ namespace Lanternkeeper.View
             sb.Append("<color=#ffd38a>6  등불 점화</color>\n")
               .Append("'점화 가능 [Space]'가 뜨면 Space나 심장을 누릅니다.\n30초 동안 피해 +15%, 3분마다 다시 쓸 수 있습니다.\n\n");
             sb.Append("<color=#ffd38a>막혔다면</color>\n")
-              .Append("· 가방의 ⇄ 장비를 직접 비교해 보기\n· 스킬 배치(R)의 [순서 시험]으로 더 센 순서 찾기\n· 태세(S)를 '신중'으로\n· 야영지에서 무기 명품화\n\n")
+              .Append("· 가방의 ⇄ 장비를 직접 비교해 보기\n· 스킬 배치(R) → 추천 배치 탭의 [순서 시험]으로 더 센 순서 찾기\n· S 키로 태세를 '신중'으로\n· 야영지에서 무기 명품화\n\n")
               .Append("<color=#8a8178>단어 뜻은 [용어집], 키는 [조작] 탭에 있습니다.</color>");
             return sb.ToString();
         }

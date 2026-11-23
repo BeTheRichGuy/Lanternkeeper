@@ -222,7 +222,7 @@ namespace Lanternkeeper.View
         void AddHistory(string text)
         {
             History.Add((System.DateTime.Now, text));
-            if (History.Count > HistoryMax) History.RemoveAt(0);
+            Trim();
             _historyDirty = true;
         }
 
@@ -276,6 +276,16 @@ namespace Lanternkeeper.View
         /// <summary>사냥 일지: the last notices with the real time they came, for someone who looked away (G).</summary>
         public readonly List<(System.DateTime at, string text)> History = new List<(System.DateTime, string)>();
         public const int HistoryMax = 50; // the automation lines share the list with the notices
+
+        /// <summary>Over the cap the oldest salvage line goes first, so 자동 분해 never pushes a find or a level off the journal (critique 5).</summary>
+        void Trim()
+        {
+            while (History.Count > HistoryMax)
+            {
+                int i = History.FindIndex(h => h.text.Contains("분해 · 잿 파편"));
+                History.RemoveAt(i >= 0 && History.Count - i > 1 ? i : 0);
+            }
+        }
 
         // ---------- the history survives sessions (UX loop 2 #14): PlayerPrefs, one string, capped ----------
 
@@ -359,7 +369,7 @@ namespace Lanternkeeper.View
         void Push(string key, string text, string icon, Color bar, Weight weight, string journal = null, float life = 0f)
         {
             History.Add((System.DateTime.Now, journal ?? text));
-            if (History.Count > HistoryMax) History.RemoveAt(0);
+            Trim();
             _historyDirty = true;
             if (!GameSettings.Notices) return; // off in settings: the journal still keeps it
 

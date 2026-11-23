@@ -144,10 +144,9 @@ namespace Lanternkeeper.View
                     break;
                 case SimEventType.Hit when !ev.FromChain && ev.SourceId != 0:
                 {
-                    var blow = BlowDirs.For(ev, _hero); // bits fly out behind the enemy, the way the blow went
-                    ElementDebris(ev.Pos, ev.Elem, blow);
-                    // 고어: a blow draws a little blood (a dozen spurts a tick at most, so a big pack stays readable).
-                    if (GameSettings.Blood && ev.Value > 0f && _tickSpurts++ < 12) BloodSpray(ev.Pos, 3, 0.9f, blow);
+                    // The element's bits are VfxDirector's (palette-stepped pixels); the dots thrown here as well doubled
+                    // every hit (audit 11-24). 고어: a blow draws a little blood, three spurts a tick at most.
+                    if (GameSettings.Blood && ev.Value > 0f && _tickSpurts++ < 3) BloodSpray(ev.Pos, 2, 0.9f, BlowDirs.For(ev, _hero));
                     break;
                 }
                 case SimEventType.Death:
@@ -155,7 +154,7 @@ namespace Lanternkeeper.View
                     // 고어 (희승 11-22): the fallen burst, blood flying on the way the killing blow went, and leave a stain.
                     if (GameSettings.Blood)
                     {
-                        BloodSpray(ev.Pos, 16, 1.7f, BlowDirs.For(ev, _hero));
+                        if (_tickDeaths <= 4) BloodSpray(ev.Pos, 7, 1.7f, BlowDirs.For(ev, _hero));
                         Stain(ev.Pos);
                     }
                     // 11-23: the killing element's burst and the ash are VfxDirector's now (pixel embers, shards, smoke, debris);
@@ -433,61 +432,6 @@ namespace Lanternkeeper.View
             lr.numCapVertices = 0;
             lr.sortingOrder = VfxPlayer.GroundOrder + 1;
             return lr;
-        }
-
-        /// <summary>
-        /// 재기획 §4.6 원소 문법: each element's debris moves its own way, so a hit reads by motion as well as colour.
-        /// Ember sparks float up, frost shards burst and fall, shock flicks fast and dies, rot drips slowly, void is drawn in.
-        /// Physical chips fly away from the hero.
-        /// </summary>
-        void ElementDebris(Vec2 at, Element e, Vector2 dir)
-        {
-            var origin = IsoProjection.ToWorld(at) + new Vector3(0f, 0.4f, 0f);
-            Vector3 away = dir != Vector2.zero ? (Vector3)dir : IsoProjection.ToWorld(at) - IsoProjection.ToWorld(_hero);
-            away.z = 0f;
-            away = away.sqrMagnitude > 1e-4f ? away.normalized : Vector3.right;
-            switch (e)
-            {
-                case Element.Ember:
-                    for (int i = 0; i < 5; i++)
-                        Emit(origin + new Vector3(Random.Range(-0.12f, 0.12f), 0f, 0f), away * Random.Range(0.3f, 0.7f) + new Vector3(Random.Range(-0.25f, 0.25f), Random.Range(0.6f, 1.2f), 0f),
-                            Random.Range(0.35f, 0.6f), Random.value < 0.3f ? 2f : 1f, -0.8f, Random.value < 0.35f ? new Color(1f, 0.95f, 0.7f) : new Color(1f, 0.55f, 0.2f));
-                    break;
-                case Element.Frost:
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = Mathf.Atan2(away.y, away.x) + Random.Range(-1.1f, 1.1f), s = Random.Range(0.8f, 1.6f); // a fan behind the enemy
-                        Emit(origin, new Vector3(Mathf.Cos(a) * s, Mathf.Sin(a) * s * 0.6f + 0.6f, 0f), Random.Range(0.3f, 0.45f), Random.value < 0.4f ? 2f : 1f, 4f, new Color(0.75f, 0.92f, 1f));
-                    }
-                    break;
-                case Element.Shock:
-                    for (int i = 0; i < 3; i++)
-                    {
-                        float a = Mathf.Atan2(away.y, away.x) + Random.Range(-1.2f, 1.2f);
-                        Emit(origin, new Vector3(Mathf.Cos(a), Mathf.Sin(a) * 0.6f, 0f) * 3f, 0.1f, 1f, 0f, new Color(1f, 0.98f, 0.75f));
-                    }
-                    break;
-                case Element.Rot:
-                    for (int i = 0; i < 3; i++)
-                        Emit(origin + new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0f, 0.1f), 0f), new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0.1f, 0.3f), 0f),
-                            Random.Range(0.6f, 0.9f), Random.value < 0.5f ? 2f : 1f, 1.4f, new Color(0.55f, 0.75f, 0.35f));
-                    break;
-                case Element.Void:
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = i * Mathf.PI / 3f + Random.value * 0.5f;
-                        var off = new Vector3(Mathf.Cos(a) * 0.4f, Mathf.Sin(a) * 0.24f, 0f);
-                        Emit(origin + off, -off / 0.14f, 0.14f, 1f, 0f, new Color(0.72f, 0.5f, 1f));
-                    }
-                    break;
-                default:
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var d = Quaternion.Euler(0f, 0f, Random.Range(-40f, 40f)) * away;
-                        Emit(origin, d * Random.Range(1f, 1.6f) + new Vector3(0f, 0.4f, 0f), 0.25f, 1f, 3f, new Color(0.9f, 0.86f, 0.78f));
-                    }
-                    break;
-            }
         }
 
         /// <summary>Pixel particles: speed in world units/s, gravity &gt; 0 falls, &lt; 0 rises.</summary>

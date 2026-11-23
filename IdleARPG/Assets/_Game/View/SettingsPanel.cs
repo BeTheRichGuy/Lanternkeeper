@@ -11,10 +11,10 @@ namespace Lanternkeeper.View
     /// </summary>
     public sealed class SettingsPanel
     {
-        const float W = 460f, H = 460f, RowH = 24f; // 11 rows, 4 headings, the character button, the footer line
+        const float W = 460f, H = 512f, RowH = 24f; // 12 rows, 5 headings, the character button, the footer line
         readonly RectTransform _win;
-        readonly Image[] _track = new Image[11], _knob = new Image[11];
-        readonly Text[] _value = new Text[11];
+        readonly Image[] _track = new Image[12], _knob = new Image[12];
+        readonly Text[] _value = new Text[12];
         public bool Visible { get; private set; }
         public Action<int> OnPick;
         /// <summary>캐릭터 선택 (Diablo's character screen).</summary>
@@ -34,6 +34,7 @@ namespace Lanternkeeper.View
             (null, "자동 점화", "정예·보스·대규모 무리, 20초", true),
             (null, "화면 위 알림", "꺼도 알림 기록(G)에 남음", true),
             ("고어", "피 표현", "쓰러질 때 피·바닥 핏자국", true),
+            ("글자", "글꼴", "다시 시작하면 바뀜", false),
         };
 
         public SettingsPanel(UiKit ui)
@@ -107,6 +108,8 @@ namespace Lanternkeeper.View
             _value[2].text = "‹ " + GameSettings.FxName + " ›";
             _value[3].text = "‹ " + numbers + " ›";
             _value[4].text = "‹ " + GameSettings.EchoName + " ›";
+            int next = UiFont.NextSet;
+            _value[11].text = "‹ " + UiFont.SetNames[next] + " ›" + (next != UiFont.Set ? " *" : "");
         }
 
         public void Toggle() => Show(!Visible);

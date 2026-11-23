@@ -18,7 +18,7 @@ namespace Lanternkeeper.View
     /// </summary>
     public sealed class RingPanel
     {
-        const float W = 880f, H = 560f, SlotSize = 44f; // the drawn round skill frame at its own size
+        const float W = 880f, H = 532f, SlotSize = 44f; // the drawn round skill frame at its own size
         /// <summary>The basic attack's place, under the row of slots.</summary>
         static readonly Vector2 Center = new Vector2(218f, 298f); // up 32 with the row: room for the table's 중첩·약공명 line (loop 1)
         const float RowY = 128f;
@@ -72,68 +72,87 @@ namespace Lanternkeeper.View
             _world = world;
             _win = ui.Window("Ring Panel", W, H, "스킬 배치", Toggle, out _title, "ui/ui2_window_iron");
 
+            // ---------- tabs (11-24: 희승 "한 탭에서는 하나의 기능만") ----------
+            // 스킬 배치: the ring, the slot's card and the pickers · 공명표: the resonance rules · 추천 배치: the sets, the
+            // order trial, the branch set. Each tab's parts live under their own container, 26 px under the title.
+            _place = UiKit.Rect(_win, "tab place", 0f, TabH, W, H - TabH);
+            _resTab = UiKit.Rect(_win, "tab resonance", 0f, TabH + 24f, W, H - TabH - 24f); // under the tab bar (y 32–55)
+            _presetTab = UiKit.Rect(_win, "tab presets", 0f, TabH + 24f, W, H - TabH - 24f);
+            string[] tabNames = { "스킬 배치", "공명표", "추천 배치" };
+            for (int t = 0; t < 3; t++)
+            {
+                int tab = t;
+                var btn = ui.Button(_win, tabNames[t], 16f + t * 124f, 32f, 120f, 22f, () => ShowTab(tab));
+                _tabText[t] = btn.GetComponentInChildren<Text>();
+                _tabBar[t] = UiKit.Fill(_win, "tab bar", 16f + t * 124f, 52f, 120f, 3f, UiKit.Gold);
+            }
+            UiKit.Fill(_win, "tab rule", 12f, 54f, W - 24f, 1f, UiKit.Line);
+
             // ---------- ring ----------
             // A pool of lantern light under the ring (same language as the reliquary and the tree).
-            var halo = UiKit.Fill(_win, "light", Center.x - 200f, RowY - 110f, 400f, 300f, new Color(1f, 0.72f, 0.4f, 0.24f));
+            var halo = UiKit.Fill(_place, "light", Center.x - 200f, RowY - 110f, 400f, 300f, new Color(1f, 0.72f, 0.4f, 0.24f));
             halo.sprite = UiKit.Glow(ui, 64);
             for (int i = 0; i < 4; i++)
             {
-                _links[i] = UiKit.Fill(_win, "link", 0f, 0f, 1f, 2f, Color.clear);
-                _linkNames[i] = UiKit.Label(_win, "", 0f, 0f, 90f, 14f, 12, TextAnchor.MiddleCenter, UiKit.Dim);
+                _links[i] = UiKit.Fill(_place, "link", 0f, 0f, 1f, 2f, Color.clear);
+                _linkNames[i] = UiKit.Label(_place, "", 0f, 0f, 90f, 14f, 12, TextAnchor.MiddleCenter, UiKit.Dim);
             }
-            var basicFrame = ui.Sprite(_win, FrameKey, Center.x - 22f, Center.y - 22f, 44f, 44f);
+            var basicFrame = ui.Sprite(_place, FrameKey, Center.x - 22f, Center.y - 22f, 44f, 44f);
             basicFrame.preserveAspect = false;
             basicFrame.color = new Color(0.75f, 0.72f, 0.68f);
-            _basicIcon = ui.Sprite(_win, "icon/skill_ember_slash", Center.x - 16f, Center.y - 16f, 32f, 32f);
-            UiKit.Label(_win, "기본 공격", Center.x - 40f, Center.y + 24f, 80f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+            _basicIcon = ui.Sprite(_place, "icon/skill_ember_slash", Center.x - 16f, Center.y - 16f, 32f, 32f);
+            UiKit.Label(_place, "기본 공격", Center.x - 40f, Center.y + 24f, 80f, 14f, 12, TextAnchor.UpperCenter, UiKit.Dim);
             // UX plan B4: the five resonances in one table (mark → the element that hits it = what goes off); the ones this
             // ring sets off are lit. The rule was nowhere in the game before (UX audit #6).
-            _resTable = UiKit.Label(_win, "", 16f, 340f, 430f, 136f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-            _resTable.lineSpacing = 1.1f;
+            _resTable = UiKit.Label(_resTab, "", 32f, 12f, 500f, 320f, 13, TextAnchor.UpperLeft, UiKit.Ink);
+            BuildCycle(ui);
+            _resTable.lineSpacing = 1.35f;
+            // On the 배치 tab only the one line that matters now: how many resonances this order sets off, and the fix.
+            _resHint = UiKit.Label(_place, "", 16f, 352f, 430f, 34f, 12, TextAnchor.UpperLeft, UiKit.Ink); // under the 기본 공격 label (critique 5 P0)
             for (int i = 0; i < 4; i++)
             {
                 var p = SlotPos(i);
                 int slot = i;
                 // The picked slot glows from behind (a soft gold pool) instead of a square outline.
-                _select[i] = UiKit.Fill(_win, "sel", p.x - 18f, p.y - 18f, SlotSize + 36f, SlotSize + 36f, Color.clear);
+                _select[i] = UiKit.Fill(_place, "sel", p.x - 18f, p.y - 18f, SlotSize + 36f, SlotSize + 36f, Color.clear);
                 _select[i].sprite = UiKit.Glow(ui, 64);
                 // Round frame: the square icon sits in a round mask under it so its corners never poke through.
-                var mask = UiKit.Fill(_win, "icon mask", p.x + 6f, p.y + 6f, 32f, 32f, Color.white);
+                var mask = UiKit.Fill(_place, "icon mask", p.x + 6f, p.y + 6f, 32f, 32f, Color.white);
                 mask.sprite = UiKit.Disc(ui, 32, 0);
                 mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-                _frames[i] = ui.Sprite(_win, FrameKey, p.x, p.y, SlotSize, SlotSize);
+                _frames[i] = ui.Sprite(_place, FrameKey, p.x, p.y, SlotSize, SlotSize);
                 _frames[i].preserveAspect = false;
                 _frames[i].raycastTarget = true;
                 var ptr = _frames[i].gameObject.AddComponent<UiPointer>();
                 ptr.LeftClick += () => SelectSlot(slot);
                 _icons[i] = ui.Sprite(mask.transform, "icon/skill_ember_slash", 0f, 0f, 32f, 32f);
-                _sigils[i] = ui.Sprite(_win, "icon/sigil_chain", p.x + SlotSize - 10f, p.y - 6f, 16f, 16f);
-                _barBack[i] = UiKit.Fill(_win, "bar", p.x, p.y + SlotSize + 2f, SlotSize, 2f, new Color(0f, 0f, 0f, 0.6f));
-                _barFill[i] = UiKit.Fill(_win, "bar fill", p.x, p.y + SlotSize + 2f, 0f, 2f, new Color(0.66f, 0.82f, 1f, 0.9f));
-                _levels[i] = UiKit.Label(_win, "", p.x - 48f, p.y + SlotSize + 5f, SlotSize + 96f, 30f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.82f, 1f));
+                _sigils[i] = ui.Sprite(_place, "icon/sigil_chain", p.x + SlotSize - 10f, p.y - 6f, 16f, 16f);
+                _barBack[i] = UiKit.Fill(_place, "bar", p.x, p.y + SlotSize + 2f, SlotSize, 2f, new Color(0f, 0f, 0f, 0.6f));
+                _barFill[i] = UiKit.Fill(_place, "bar fill", p.x, p.y + SlotSize + 2f, 0f, 2f, new Color(0.66f, 0.82f, 1f, 0.9f));
+                _levels[i] = UiKit.Label(_place, "", p.x - 48f, p.y + SlotSize + 5f, SlotSize + 96f, 30f, 12, TextAnchor.UpperCenter, new Color(0.66f, 0.82f, 1f));
             }
 
             // ---------- detail ----------
             const float dx = 452f, dw = W - dx - 16f;
             // The skill card on burnt parchment, like the reliquary's stat card.
-            var card = ui.Sprite(_win, "ui/ui2_parchment", dx - 12f, 30f, dw + 24f, 218f, sliced: true); // taller: the card now says what the skill does
+            var card = ui.Sprite(_place, "ui/ui2_parchment", dx - 12f, 30f, dw + 24f, 218f, sliced: true); // taller: the card now says what the skill does
             card.preserveAspect = false;
             card.color = new Color(0.42f, 0.36f, 0.32f, 1f);
-            var dframe = UiKit.Fill(_win, "icon well", dx, 40f, 72f, 72f, new Color(0.05f, 0.04f, 0.04f, 0.85f));
-            _detailIcon = ui.Sprite(_win, "icon/skill_ember_slash", dx + 4f, 44f, 64f, 64f); // 32 px art at ×2
-            _detailName = UiKit.Label(_win, "", dx + 84f, 42f, dw - 84f, 16f, 14, TextAnchor.UpperLeft, UiKit.Gold, title: true);
-            _detailBody = UiKit.Label(_win, "", dx + 84f, 62f, dw - 84f, 178f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            var dframe = UiKit.Fill(_place, "icon well", dx, 40f, 72f, 72f, new Color(0.05f, 0.04f, 0.04f, 0.85f));
+            _detailIcon = ui.Sprite(_place, "icon/skill_ember_slash", dx + 4f, 44f, 64f, 64f); // 32 px art at ×2
+            _detailName = UiKit.Label(_place, "", dx + 84f, 42f, dw - 84f, 16f, 14, TextAnchor.UpperLeft, UiKit.Gold, title: true);
+            _detailBody = UiKit.Label(_place, "", dx + 84f, 62f, dw - 84f, 178f, 12, TextAnchor.UpperLeft, UiKit.Ink);
             _detailBody.lineSpacing = 1.12f;
-            _detailBarBack = UiKit.Fill(_win, "bar", dx, 118f, 72f, 3f, new Color(0f, 0f, 0f, 0.6f));
-            _detailBarFill = UiKit.Fill(_win, "bar fill", dx, 118f, 0f, 3f, new Color(0.66f, 0.82f, 1f, 0.95f));
+            _detailBarBack = UiKit.Fill(_place, "bar", dx, 118f, 72f, 3f, new Color(0f, 0f, 0f, 0.6f));
+            _detailBarFill = UiKit.Fill(_place, "bar fill", dx, 118f, 0f, 3f, new Color(0.66f, 0.82f, 1f, 0.95f));
 
             // ---------- pickers ----------
-            _skillLabel = UiKit.Label(_win, "", dx, 252f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _skillLabel = UiKit.Label(_place, "", dx, 252f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             // Every icon carries its name underneath (loop 2 P0: 31 nameless icons; "확산" could not be found).
-            _skillGrid = UiKit.Rect(_win, "skills", dx, 268f, dw, 60f);
-            _preview = UiKit.Label(_win, "", dx, 330f, dw, 30f, 12, TextAnchor.UpperLeft, UiKit.Ink);
-            _sigilLabel = UiKit.Label(_win, "", dx, 362f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            _sigilGrid = UiKit.Rect(_win, "sigils", dx, 378f, dw, 96f);
+            _skillGrid = UiKit.Rect(_place, "skills", dx, 268f, dw, 60f);
+            _preview = UiKit.Label(_place, "", dx, 330f, dw, 30f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _sigilLabel = UiKit.Label(_place, "", dx, 362f, dw, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _sigilGrid = UiKit.Rect(_place, "sigils", dx, 378f, dw, 96f);
             for (int i = 0; i < AllSigils.Length; i++)
             {
                 var g = AllSigils[i];
@@ -152,22 +171,25 @@ namespace Lanternkeeper.View
             }
 
             var presets = SkillBook.PresetsFor(world.Hero.ClassId);
-            UiKit.Label(_win, "추천 배치", 16f, H - 52f - ((presets.Length + 3) / 4 - 1) * 24f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            // The row shares the room left of 순서 시험 (seven 140-px buttons ran under it and out of the window, UX audit #16):
-            // up to four a line, a second line above when there are more.
-            float rowW = W - 16f - 140f - 12f - 16f;
-            int perLine = Mathf.Min(4, presets.Length), lines = (presets.Length + perLine - 1) / perLine;
-            float bw = Mathf.Floor(rowW / perLine) - 6f;
+            UiKit.Label(_presetTab, "추천 배치", 40f, 24f, 300f, 16f, 14, TextAnchor.UpperLeft, UiKit.Gold, title: true);
+            UiKit.Label(_presetTab, "직업에 맞춘 네 칸 구성입니다. 누르면 바로 바뀌고, 스킬 배치 탭에서 칸을 고치면 '직접 배치'가 됩니다.",
+                40f, 46f, W - 80f, 16f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            // Two columns of roomy buttons (they were a cramped row under the pickers).
+            float bw = (W - 80f - 12f) / 2f;
             for (int i = 0; i < presets.Length; i++)
             {
-                int idx = i, line = i / perLine, col = i % perLine;
-                _presets.Add(ui.Button(_win, presets[i].Name, 16f + col * (bw + 6f), H - 34f - (lines - 1 - line) * 24f, bw, 20f, () => { _world.SetPreset(idx); Changed(); }));
+                int idx = i;
+                _presets.Add(ui.Button(_presetTab, presets[i].Name, 40f + (i % 2) * (bw + 12f), 74f + (i / 2) * 34f, bw, 28f, () => { _world.SetPreset(idx); Changed(); }));
             }
+            float py = 74f + ((presets.Length + 1) / 2) * 34f + 18f;
+            UiKit.Fill(_presetTab, "rule", 40f, py - 8f, W - 80f, 1f, UiKit.Line);
             // 고리 시험 (재기획 §5.6): every order of these skills hunted 40 s from this moment, best first.
-            ui.Button(_win, "순서 시험", W - 16f - 140f, H - 34f, 140f, 20f, RunTrial);
+            ui.Button(_presetTab, "순서 시험", 40f, py + 4f, 160f, 24f, RunTrial);
+            UiKit.Label(_presetTab, "지금 네 스킬의 순서를 모두 40초씩 사냥해 보고 가장 센 순서를 알려 줍니다.", 212f, py + 9f, W - 252f, 16f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             // 갈래별 스킬 세트 (희승 11-22): a card of that branch switches back to what is kept here.
-            ui.Button(_win, "이 갈래 세트로 저장", W - 16f - 140f, H - 58f, 140f, 20f, () => { _world.SaveBranchSet(); Changed(); });
-            _trial = UiKit.Rect(_win, "trial", W - 16f - 330f, H - 40f - 200f, 330f, 200f);
+            ui.Button(_presetTab, "이 갈래 세트로 저장", 40f, py + 36f, 160f, 24f, () => { _world.SaveBranchSet(); Changed(); });
+            UiKit.Label(_presetTab, "지금 배치를 이 갈래의 기본 세트로 기억합니다. 갈래 카드를 고르면 이 세트로 돌아옵니다.", 212f, py + 41f, W - 252f, 16f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+            _trial = UiKit.Rect(_presetTab, "trial", W - 40f - 330f, 70f, 330f, 200f);
             var tc = _trial.gameObject.AddComponent<Canvas>();
             tc.overrideSorting = true;
             tc.sortingOrder = ui.Canvas.sortingOrder + 5;
@@ -175,7 +197,25 @@ namespace Lanternkeeper.View
             var tb = _trial.gameObject.AddComponent<Image>();
             tb.color = new Color(0.04f, 0.035f, 0.05f, 1f);
             _trial.gameObject.SetActive(false);
+            ShowTab(0);
             SetVisible(false);
+        }
+
+        const float TabH = 26f;
+        readonly RectTransform _place, _resTab, _presetTab;
+        readonly Text[] _tabText = new Text[3];
+        readonly Image[] _tabBar = new Image[3];
+        readonly Text _resHint;
+        int _tab;
+
+        void ShowTab(int t)
+        {
+            _tab = t;
+            _place.gameObject.SetActive(t == 0);
+            _resTab.gameObject.SetActive(t == 1);
+            _presetTab.gameObject.SetActive(t == 2);
+            for (int i = 0; i < 3; i++) { _tabText[i].color = i == t ? UiKit.Gold : UiKit.Dim; _tabBar[i].enabled = i == t; }
+            if (t != 2 && _trial != null) _trial.gameObject.SetActive(false);
         }
 
         RectTransform _trial;
@@ -355,6 +395,7 @@ namespace Lanternkeeper.View
             }
 
             _resTable.text = ResonanceTable(ring, open);
+            _resHint.text = ResonanceHint(ring, open);
 
             // Detail of the chosen slot.
             var sel = _slot < open ? ring.Slots[_slot] : null;
@@ -548,6 +589,59 @@ namespace Lanternkeeper.View
             sb.Append("\n<color=").Append(stack ? "#ffcf5a>▶ " : "#b4ac98>").Append("같은 원소 = 중첩 +10%씩(최대 5)</color>")
               .Append("<color=#6a645c> · </color><color=").Append(spark ? "#ffcf5a>▶ " : "#b4ac98>").Append("순서 밖 = 약공명 +30%</color>");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// The 공명표 tab's picture: the five elements round a circle in their order, an arrow from each to the next and
+        /// the resonance that link sets off written on it — the table's rule drawn once (11-24: the tab was text only).
+        /// </summary>
+        void BuildCycle(UiKit ui)
+        {
+            var c = new Vector2(W - 200f, 170f);
+            const float r = 120f;
+            var at = new Vector2[Cycle.Length];
+            for (int i = 0; i < Cycle.Length; i++)
+            {
+                float ang = Mathf.Deg2Rad * (-90f + i * 360f / Cycle.Length);
+                at[i] = c + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * r;
+            }
+            var halo = UiKit.Fill(_resTab, "light", c.x - 170f, c.y - 160f, 340f, 320f, new Color(1f, 0.72f, 0.4f, 0.12f));
+            halo.sprite = UiKit.Glow(ui, 64);
+            for (int i = 0; i < Cycle.Length; i++)
+            {
+                Vector2 a = at[i], b = at[(i + 1) % Cycle.Length], d = (b - a).normalized;
+                var from = a + d * 30f; var to = b - d * 30f;
+                Line(UiKit.Fill(_resTab, "arrow", 0f, 0f, 1f, 2f, Color.white), from, to, 2f, new Color(1f, 0.83f, 0.5f, 0.55f));
+                var tip = UiKit.Label(_resTab, "▶", to.x - 7f, to.y - 8f, 14f, 16f, 12, TextAnchor.MiddleCenter, new Color(1f, 0.83f, 0.5f, 0.8f));
+                tip.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                tip.rectTransform.anchoredPosition = new Vector2(to.x, -to.y);
+                tip.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg);
+                var mid = (a + b) / 2f + new Vector2(-d.y, d.x) * -18f; // the resonance's name just outside the arrow
+                UiKit.Label(_resTab, "<color=#ffcf5a>" + FxView.ResonanceName(Elements.Forward(Cycle[i].mark)) + "</color>", mid.x - 40f, mid.y - 8f, 80f, 16f, 12, TextAnchor.MiddleCenter, UiKit.Ink);
+                var disc = UiKit.Fill(_resTab, "element", a.x - 26f, a.y - 26f, 52f, 52f, new Color(0.08f, 0.07f, 0.07f, 0.95f));
+                disc.sprite = UiKit.Disc(ui, 52, 0);
+                UiKit.Label(_resTab, SkillCard.Elem(Cycle[i].mark), a.x - 30f, a.y - 9f, 60f, 18f, 14, TextAnchor.MiddleCenter, UiKit.Ink, title: true);
+            }
+            UiKit.Label(_resTab, "각인된 적을 화살표 방향의 다음 원소로 치면 터집니다", c.x - 170f, c.y + r + 40f, 340f, 16f, 12, TextAnchor.UpperCenter, UiKit.Dim);
+        }
+
+        /// <summary>The 배치 tab's one line: which resonances this order sets off (or the nearest fix), the rules being on 공명표.</summary>
+        static string ResonanceHint(SkillRing ring, int open)
+        {
+            var names = new List<string>();
+            for (int i = 0; i < 4; i++)
+            {
+                int j = (i + 1) % 4;
+                if (i >= open || j >= open || ring.Slots[i] == null || ring.Slots[j] == null) continue;
+                var r = Elements.Resolve(ElementOf(ring, i), ElementOf(ring, j));
+                if (Elements.IsForward(r) && !names.Contains(FxView.ResonanceName(r))) names.Add(FxView.ResonanceName(r));
+            }
+            if (names.Count > 0) return "지금 공명 <color=#ffcf5a>" + string.Join(" · ", names) + "</color>  <color=#8a8178>규칙은 공명표 탭</color>";
+            var table = ResonanceTable(ring, open); // its second line names the nearest fix when there is none
+            int a = table.IndexOf("\n<color=#ff9a6a>", StringComparison.Ordinal);
+            if (a < 0) return "<color=#8a8178>공명 없음 · 규칙은 공명표 탭</color>";
+            int b = table.IndexOf('\n', a + 1);
+            return table.Substring(a + 1, (b < 0 ? table.Length : b) - a - 1) + "\n<color=#8a8178>규칙은 공명표 탭</color>";
         }
 
         static Element ElementOf(SkillRing ring, int slot)

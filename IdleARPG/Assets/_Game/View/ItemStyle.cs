@@ -27,7 +27,9 @@ namespace Lanternkeeper.View
                 case Rarity.Magic: return new Color32(0x6F, 0xA0, 0xFF, 0xFF);
                 case Rarity.Rare: return new Color32(0xFF, 0xE4, 0x5C, 0xFF);
                 case Rarity.Legendary: return new Color32(0xFF, 0x8C, 0x26, 0xFF);
-                case Rarity.Unique: return new Color32(0xC7, 0x7D, 0xFF, 0xFF);
+                // 11-24: unique was purple, which Korean players read as *below* orange (Lost Ark 영웅 < 전설; WoW epic <
+                // legendary). Diablo's own order ends in gold: 희귀 lemon yellow < 전설 orange < 고유 antique gold.
+                case Rarity.Unique: return new Color32(0xE0, 0xBC, 0x74, 0xFF);
                 default: return new Color32(0xC8, 0xC8, 0xC0, 0xFF);
             }
         }
@@ -71,6 +73,8 @@ namespace Lanternkeeper.View
         /// <summary>The base's own picture (`icon/item_<id>`, 희승 11-22 직업 전용 장비) once drawn, else its slot's.</summary>
         public static string Icon(Item item)
         {
+            // 11-24: a unique has its own picture (art/pixellab/icons/item_unique_<id>.png) once it is drawn.
+            if (!string.IsNullOrEmpty(item.UniqueId) && HasSprite != null && HasSprite("icon/item_unique_" + item.UniqueId)) return "icon/item_unique_" + item.UniqueId;
             string own = "icon/item_" + item.BaseId;
             return HasSprite != null && HasSprite(own) ? own : ItemData.Base(item.BaseId).Icon;
         }

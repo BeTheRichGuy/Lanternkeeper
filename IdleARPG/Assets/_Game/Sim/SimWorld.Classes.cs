@@ -30,6 +30,12 @@ namespace Lanternkeeper.Sim
         /// <summary>휠윈드: every 0.3 s the blades cut everything around the hero.</summary>
         void TickWhirl()
         {
+            if (_whirl != null && Time >= Hero.WhirlUntil)
+            {
+                // 전설 "폭발하는": the spin ends in a burst of embers.
+                if (Hero.Has("whirl_finale")) FireHeroBlast(Hero.Pos, 3f, 2f, Element.Ember, "cinder_echo_burst");
+                _whirl = null;
+            }
             if (!Whirling || TickCount % 3 != 0) return;
             var c = _whirl;
             Events.Add(new SimEvent { Type = SimEventType.Cast, SourceId = 0, Pos = Hero.Pos, From = Hero.Pos, SkillId = c.Skill.Id, Elem = c.Elem, Value = c.Radius });
@@ -64,7 +70,8 @@ namespace Lanternkeeper.Sim
         {
             var src = from.Pos;
             var picked = new List<Enemy>();
-            for (int k = 0; k < c.Skill.Forks; k++)
+            int forks = c.Skill.Forks + (Hero.Has("storm_forks") ? 2 : 0); // 폭풍의 시위: 3 → 5
+            for (int k = 0; k < forks; k++)
             {
                 var o = NearestExcept(src, 4.5f, hit);
                 if (o == null) break;

@@ -85,6 +85,7 @@ namespace Lanternkeeper.Sim
             _copies.Clear();
             _whirl = null;
             _grounds.Clear();
+            ResetPowerState();
         }
 
         // ---------- ring ----------
@@ -314,6 +315,7 @@ namespace Lanternkeeper.Sim
             });
             CountUse(skill, mods);
             Execute(c);
+            PowerCast(c, scorch); // 고유·전설 효과
             AfterCastAugments(skill, target);
             if (skill.Channel > 0f) StartWhirl(c);
             if (skill.Volley > 0) QueueVolley(c);
@@ -369,6 +371,7 @@ namespace Lanternkeeper.Sim
                         Strike(c, c.Target, 1f, ctx);
                     }
                     if (s.Forks > 0) Fork(c, c.Target, Math.Max(1, s.ForkDepth), new List<Enemy> { c.Target });
+                    PowerSingle(c);
                     break;
                 }
                 case SkillShape.Single:
@@ -394,6 +397,7 @@ namespace Lanternkeeper.Sim
                     }
                     for (int h = 0; h < s.Hits; h++) Strike(c, c.Target, 1f);
                     if (s.BaseId == "ember_slash" && Hero.Has("ember_echo")) Strike(c, c.Target, 1f);
+                    PowerSingle(c);
                     // 휩쓸기 (희승: 워리어 계열은 다 휩쓸고 다닌다): a melee class's basic swing also cuts what stands
                     // around its target at 40%, the arc widening with skill area.
                     if (s == Hero.Ring.Basic && !s.Ranged && HeroStats.IsMeleeClass(Hero.ClassId))
@@ -702,6 +706,7 @@ namespace Lanternkeeper.Sim
             }
             if (s.FrozenBonus > 0f && Time < e.FreezeUntil) mul *= 1f + s.FrozenBonus; // 빙결 파쇄
             ApplyHit(e, RollHeroDamage(c.Power * mul, c.Elem, c.Mods, e), c.Elem, false, 0, 0, ctx);
+            PowerStrike(c, e);
             Combust(c, e);
             if (s.StunSeconds > 0f && e.Alive && !s.Ground) e.StunUntil = Math.Max(e.StunUntil, Time + s.StunSeconds);
             if (s.DotPower > 0f && e.Alive)
@@ -851,6 +856,7 @@ namespace Lanternkeeper.Sim
         {
             TickWhirl();
             TickBurns();
+            TickPowers();
             // Delayed blasts: fissure eruptions, hammers, echoes, cinder echo bursts.
             if (_blasts.Count > 0)
             {
@@ -985,6 +991,7 @@ namespace Lanternkeeper.Sim
             if (b.Trail > 0f && _grounds.Count < 40) AddGround(b.Pos, b.Radius, b.Power * 0.2f, b.Elem, b.Trail); // 혜성 꼬리 burns behind it
             foreach (var e in InRadius(b.Pos, b.Radius))
                 ApplyHit(e, RollHeroDamage(b.Power, b.Elem, b.Mods, e), b.Elem, false, 0, 0, ctx);
+            PowerBlast(b);
             // 재의 메아리: the burst restarts the dead enemy's death chain.
             if (b.Remark != Element.None) QueuePop(b.Pos, b.Remark, Hero.Stats.Damage * 1.2f * (1f + Hero.Derived.DamagePct), 0, 0, 0, b.Mods.HopBonus, b.Mods.Ripple);
         }
@@ -1046,6 +1053,7 @@ namespace Lanternkeeper.Sim
         void OnHeroHit(Enemy attacker, float taken)
         {
             Hero.Heat = Math.Min(HeatMax, Hero.Heat + (IsOathknight ? 8f : 6f));
+            PowerHeroHit();
             // 은총의 메아리: each blow taken while armed answers with a holy burst.
             if (Hero.GraceCharges > 0)
             {
@@ -1211,7 +1219,7 @@ namespace Lanternkeeper.Sim
         void AddGauge(float amount, bool force = false)
         {
             if (_inGrand && !force) return;
-            Hero.Gauge = Math.Min(GaugeMax * 1.5f, Hero.Gauge + amount * (force ? 1f : Hero.GaugeRate));
+            Hero.Gauge = Math.Min(GaugeMax * 1.5f, Hero.Gauge + amount * (force ? 1f : Hero.GaugeRate * (Hero.Has("kings_echo") ? 1.25f : 1f)));
         }
 
         /// <summary>
@@ -1259,6 +1267,7 @@ namespace Lanternkeeper.Sim
                     ApplyHit(e, RollHeroDamage(1.2f, hit2, SkillMods.Neutral, e), hit2, false, 0, 0, HitCtx.None);
                 }
             }
+            PowerGrand(mark); // 죽은 왕의 인장
             _inGrand = false;
         }
 
@@ -1299,6 +1308,7 @@ namespace Lanternkeeper.Sim
             if (Talents.Has(Hero, Talents.Defense, 1)) Hero.Stats.Hp = Math.Min(Hero.Stats.MaxHp, Hero.Stats.Hp + Hero.Stats.MaxHp * 0.01f); // 피의 맹세
             if (e.Mark != Element.None && Hero.Has("ash_feast"))
                 Hero.Stats.Hp = Math.Min(Hero.Stats.MaxHp, Hero.Stats.Hp + Hero.Stats.MaxHp * 0.02f);
+            PowerKill(e);
 
             if (e.Mark == Element.None) return;
             // 재의 메아리: the spot erupts again a moment later and restarts the chain.
@@ -1434,6 +1444,7 @@ namespace Lanternkeeper.Sim
                 float r2 = radius * radius;
                 Events.Add(new SimEvent { Type = SimEventType.ChainPop, Pos = pop.Pos, Elem = pop.Mark, Depth = pop.Depth, Value = radius });
                 AddGauge(0.2f);
+                PowerChainPop(pop.Pos);
                 if (!_cascadeHits.TryGetValue(pop.Cascade, out var hit)) _cascadeHits[pop.Cascade] = hit = new HashSet<int>();
                 var ctx = new HitCtx { Slot = -1, HopBonus = pop.HopBonus, Ripple = pop.Ripple, From = pop.Pos };
                 foreach (var e in _enemies.ToArray())

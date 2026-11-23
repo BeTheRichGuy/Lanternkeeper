@@ -3,8 +3,8 @@ using System.Collections.Generic;
 namespace Lanternkeeper.Sim
 {
     /// <summary>
-    /// M1 item tables (GDD §8.3–8.6): 2–3 bases per slot with one implicit, 16 affixes, 5 Ashknight essences,
-    /// 2 uniques. All balance numbers for items live here.
+    /// Item tables (GDD §8.3–8.6): class bases with one implicit, the affixes, legendary powers by class, and 14 uniques
+    /// with powers of their own. All balance numbers for items live here.
     /// </summary>
     public static class ItemData
     {
@@ -93,32 +93,107 @@ namespace Lanternkeeper.Sim
             new AffixDef { Stat = Stat.MagicFindPct,       Min = 5f,   Max = 10f,  Slots = new[] { Slot.Boots, Slot.Ring, Slot.Amulet, Slot.Helm }, Adjective = "운 좋은", Label = "마법 아이템 발견 +{0}%", Percent = true },
         };
 
-        /// <summary>Ashknight essences (GDD §8.5). Three are wired into combat in M1 (see SimWorld).</summary>
+        static readonly string[] Ash = { "ashknight" }, Oath = { "oathknight" }, Wind = { "windhunter" }, Star = { "starseer" };
+
+        /// <summary>
+        /// Legendary powers (GDD §8.5) and, last, each unique's own power. 희승 11-24 ("디아블로에서 먹었을 때는 기분 좋았는데,
+        /// 이건 양산형 RPG 아이템 같아"): a power changes how one of the class's skills plays and shows on screen; a legendary
+        /// rolls only powers of the hero's class (<see cref="EssenceDef.Classes"/>), a unique's power is its own.
+        /// The first five ids are also the evolution conditions' essences (SkillData) — keep them.
+        /// </summary>
         public static readonly EssenceDef[] Essences =
         {
-            new EssenceDef { Id = "ember_echo",    Adjective = "메아리치는",    Text = "잿불 베기를 쓰면 같은 적을 한 번 더 벱니다" },
-            new EssenceDef { Id = "shatter_chain", Adjective = "산산조각 내는", Text = "파쇄가 터진 자리에서 잿불 폭발이 한 번 더 일어납니다" },
+            new EssenceDef { Id = "ember_echo",    Adjective = "메아리치는",    Text = "잿불 베기를 쓰면 같은 적을 한 번 더 벱니다", Classes = Ash },
+            new EssenceDef { Id = "shatter_chain", Adjective = "산산조각 내는", Text = "파쇄가 터진 자리에서 잿불 폭발이 한 번 더 일어납니다", Classes = new[] { "ashknight", "starseer" } },
             new EssenceDef { Id = "long_chain",    Adjective = "끝없는",        Text = "각인된 적이 죽을 때 번지는 폭발이 최대 2번 더 이어집니다" },
             new EssenceDef { Id = "ash_feast",     Adjective = "재를 먹는",     Text = "각인된 적을 처치할 때마다 최대 생명력의 2%를 회복합니다" },
-            new EssenceDef { Id = "wide_whirl",    Adjective = "휘몰아치는",    Text = "휠윈드가 도는 범위가 40% 넓어집니다" },
+            new EssenceDef { Id = "wide_whirl",    Adjective = "휘몰아치는",    Text = "휠윈드가 도는 범위가 40% 넓어집니다", Classes = Ash },
+            // 직업 전설 효과 (11-24)
+            new EssenceDef { Id = "whirl_finale",  Adjective = "폭발하는",      Text = "휠윈드가 끝날 때 잿불이 터져 3칸 안의 적에게 공격력의 200% 피해를 줍니다", Classes = Ash },
+            new EssenceDef { Id = "brand_burst",   Adjective = "서리 튀는",     Text = "서리 낙인이 적중하면 서리 파편이 튀어 1.8칸 안의 적에게 공격력의 50% 서리 피해를 줍니다", Classes = Ash },
+            new EssenceDef { Id = "zeal_arc",      Adjective = "광신의",        Text = "열성의 연타가 끝나면 번개가 주변 적 넷에게 튑니다 (각 공격력의 80%)", Classes = Oath },
+            new EssenceDef { Id = "bash_ricochet", Adjective = "튕겨 나는",     Text = "방패 강타의 방패가 근처 적 셋에게 더 튕깁니다 (각 공격력의 80%)", Classes = Oath },
+            new EssenceDef { Id = "volley_pierce", Adjective = "꿰뚫는",        Text = "속사의 화살이 맞은 적을 꿰뚫고 뒤의 적 둘도 똑같이 맞힙니다", Classes = Wind },
+            new EssenceDef { Id = "rain_rot",      Adjective = "썩어 내리는",   Text = "화살비가 떨어진 자리에 2초간 독 웅덩이가 남아 초당 공격력의 50% 부패 피해를 줍니다", Classes = Wind },
+            new EssenceDef { Id = "meteor_scorch", Adjective = "운석 같은",     Text = "운석이 떨어진 자리가 3초간 불타 초당 공격력의 60% 잿불 피해를 줍니다", Classes = Star },
+            new EssenceDef { Id = "ice_splinter",  Adjective = "쪼개지는",      Text = "얼음 화살이 적을 맞히면 얼음 조각 셋이 근처 적에게 튑니다 (각 공격력의 60% 서리)", Classes = Star },
+            // 고유 효과 (unique-only)
+            new EssenceDef { Id = "wick_flame",      UniqueOnly = true, Text = "죽음의 연쇄가 터진 자리마다 2초간 등불 불길이 남아 초당 공격력의 100% 피해를 줍니다" },
+            new EssenceDef { Id = "kings_echo",      UniqueOnly = true, Text = "대공명이 1초 뒤 한 번 더 울리고(같은 위력), 대공명 게이지가 25% 빨리 찹니다" },
+            new EssenceDef { Id = "grave_burst",     UniqueOnly = true, Classes = Ash, Text = "잿불 베기와 용광 일격이 적중할 때마다 무덤 불꽃이 터져 2칸 안의 적에게 공격력의 100% 잿불 피해를 줍니다 (적을 쓰러뜨리면 200%)" },
+            new EssenceDef { Id = "furnace_trail",   UniqueOnly = true, Classes = Ash, Text = "휠윈드가 지나간 자리에 3초간 불길이 남아 초당 공격력의 40% 잿불 피해를 줍니다" },
+            new EssenceDef { Id = "cinder_crown",    UniqueOnly = true, Classes = Ash, Text = "작열한 스킬을 쓸 때마다 주변 적 셋 위로 잿불 운석이 떨어집니다 (각 공격력의 180%)" },
+            new EssenceDef { Id = "judges_verdict",  UniqueOnly = true, Classes = Oath, Text = "심판이 적을 칠 때마다 주변 적 넷에게 번개가 내리치고(각 공격력의 160%, 반경 1.5칸), 심판이 1초 빨리 돌아옵니다" },
+            new EssenceDef { Id = "pilgrim_hammers", UniqueOnly = true, Classes = Oath, Text = "축복의 망치가 두 번 더 휘몰아칩니다 (각 공격력의 50%)" },
+            new EssenceDef { Id = "silent_bastion",  UniqueOnly = true, Classes = Oath, Text = "피해를 10번 받을 때마다 침묵을 깨고 3칸 안의 적을 공격력의 250% 전격으로 내려치며 생명력 5%를 회복합니다" },
+            new EssenceDef { Id = "storm_forks",     UniqueOnly = true, Classes = Wind, Text = "갈래 화살이 3갈래가 아니라 5갈래로 갈라집니다" },
+            new EssenceDef { Id = "gale_ward",       UniqueOnly = true, Classes = Wind, Text = "1.5초마다 2칸 안의 적을 회오리로 1칸 밀쳐 내며 공격력의 120% 전격 피해를 줍니다" },
+            new EssenceDef { Id = "hawk_mark",       UniqueOnly = true, Classes = Wind, Text = "4초마다 가장 단단한 적에게 매의 표식을 새깁니다: 받는 피해 +25%, 죽으면 주변 적에게 화살 5발 (각 공격력의 60%)" },
+            new EssenceDef { Id = "star_fall",       UniqueOnly = true, Classes = Star, Text = "고리 스킬을 3번 쓸 때마다 대상 위로 별이 떨어져 2.2칸 안의 적에게 공격력의 300% 잿불 피해를 줍니다" },
+            new EssenceDef { Id = "orbit_stars",     UniqueOnly = true, Classes = Star, Text = "별 셋이 곁을 돌며 1초마다 7칸 안의 적 셋에게 별빛을 쏩니다 (맞은 자리 1.2칸에 공격력의 100%)" },
+            new EssenceDef { Id = "time_eater",      UniqueOnly = true, Classes = Star, Text = "적을 쓰러뜨리면(8초에 한 번) 4칸 안의 시간이 2초간 멈추고, 멈춘 동안 받은 피해가 1.5배로 한꺼번에 들어갑니다" },
         };
 
-        /// <summary>GDD §8.6: uniques appear from Lv15 (none reachable in act I zone 1; defined for the drop table).</summary>
+        /// <summary>
+        /// GDD §8.6: uniques appear from Lv15. Two shared jewels and three pieces per class (11-24: two per class — one
+        /// shared amulet and a weapon — made every unique one of two items). Icons: `icon/item_unique_&lt;id&gt;`.
+        /// </summary>
         public static readonly UniqueDef[] Uniques =
         {
-            new UniqueDef { Id = "unquenched_wick", Name = "꺼지지 않는 심지", BaseId = "lantern_pendant", EssenceId = "long_chain",
+            new UniqueDef { Id = "unquenched_wick", Name = "꺼지지 않는 심지", BaseId = "lantern_pendant", EssenceId = "wick_flame",
+                Flavor = "첫 등불지기가 끝까지 놓지 않은 불씨.",
                 Fixed = new[] { (Stat.MaxHp, 40f), (Stat.RegenPct, 1f), (Stat.ResonancePct, 25f), (Stat.ChainRadiusPct, 20f) } },
-            new UniqueDef { Id = "gravekeepers_oath", Name = "묘지기의 맹세", BaseId = "gravedigger_axe", EssenceId = "ash_feast",
-                Fixed = new[] { (Stat.FlatDamage, 12f), (Stat.CritChancePct, 6f), (Stat.CritDamagePct, 40f), (Stat.EmberPct, 20f) } },
-            // 희승 11-22 직업 전용 장비: with drops kept to the hero's class, every class needs a weapon unique of its own (the
-            // 20 h sim lost 4–8 h on 서약기사 and 별점술사 when 묘지기의 맹세 became 잿불기사-only).
-            new UniqueDef { Id = "judges_vow", Name = "심판자의 맹세", BaseId = "judgment_hammer", EssenceId = "ash_feast",
-                Fixed = new[] { (Stat.FlatDamage, 12f), (Stat.CritChancePct, 6f), (Stat.CritDamagePct, 40f), (Stat.ShockPct, 20f) } },
-            new UniqueDef { Id = "stormstring", Name = "폭풍의 시위", BaseId = "storm_recurve", EssenceId = "ash_feast",
-                Fixed = new[] { (Stat.FlatDamage, 12f), (Stat.CritChancePct, 6f), (Stat.CritDamagePct, 40f), (Stat.ShockPct, 20f) } },
-            new UniqueDef { Id = "fallen_star_staff", Name = "떨어진 별의 지팡이", BaseId = "star_staff", EssenceId = "ash_feast",
-                Fixed = new[] { (Stat.FlatDamage, 12f), (Stat.CritChancePct, 6f), (Stat.CritDamagePct, 40f), (Stat.EmberPct, 20f) } },
+            new UniqueDef { Id = "dead_kings_seal", Name = "죽은 왕의 인장", BaseId = "bone_ring", EssenceId = "kings_echo",
+                Flavor = "왕은 모래에 묻혔으나 명령은 아직 살아 있다.",
+                Fixed = new[] { (Stat.CritDamagePct, 30f), (Stat.ResonancePct, 20f), (Stat.CooldownPct, 6f), (Stat.MagicFindPct, 15f) } },
+            // 잿불기사
+            new UniqueDef { Id = "gravekeepers_oath", Name = "묘지기의 맹세", BaseId = "gravedigger_axe", EssenceId = "grave_burst",
+                Flavor = "묻은 이의 수만큼 날이 무거워진다.",
+                Fixed = new[] { (Stat.FlatDamage, 14f), (Stat.CritDamagePct, 50f), (Stat.EmberPct, 20f), (Stat.AttackSpeedPct, 8f) } },
+            new UniqueDef { Id = "furnace_heart", Name = "식지 않는 용광로", BaseId = "scorched_plate", EssenceId = "furnace_trail",
+                Flavor = "조합장의 심장은 식는 법을 잊었다.",
+                Fixed = new[] { (Stat.MaxHp, 60f), (Stat.DamageReductionPct, 6f), (Stat.EmberPct, 25f), (Stat.RegenPct, 0.8f) } },
+            new UniqueDef { Id = "crown_of_cinders", Name = "재의 왕관", BaseId = "horned_helm", EssenceId = "cinder_crown",
+                Flavor = "불타는 왕국의 왕은 재를 쓰고 웃었다.",
+                Fixed = new[] { (Stat.EmberPct, 20f), (Stat.CritChancePct, 4f), (Stat.CooldownPct, 8f), (Stat.MaxHp, 30f) } },
+            // 서약기사 (11-22: every class needs a weapon unique of its own — the 20 h sim lost 4–8 h without one)
+            new UniqueDef { Id = "judges_vow", Name = "심판자의 맹세", BaseId = "judgment_hammer", EssenceId = "judges_verdict",
+                Flavor = "판결은 한 번, 번개는 세 번.",
+                Fixed = new[] { (Stat.FlatDamage, 13f), (Stat.ShockPct, 25f), (Stat.CritChancePct, 6f), (Stat.AreaPct, 10f) } },
+            new UniqueDef { Id = "pilgrims_grasp", Name = "순례자의 손아귀", BaseId = "vow_gauntlets", EssenceId = "pilgrim_hammers",
+                Flavor = "길 위에서 닳은 손은 망치를 놓지 않는다.",
+                Fixed = new[] { (Stat.AttackSpeedPct, 10f), (Stat.ShockPct, 18f), (Stat.FlatDamage, 6f), (Stat.MaxHp, 30f) } },
+            new UniqueDef { Id = "silent_vow", Name = "침묵의 서약", BaseId = "oath_great_helm", EssenceId = "silent_bastion",
+                Flavor = "맹세한 날부터 그는 한마디도 하지 않았다.",
+                Fixed = new[] { (Stat.MaxHp, 50f), (Stat.DamageReductionPct, 6f), (Stat.FrostPct, 18f), (Stat.RegenPct, 0.6f) } },
+            // 바람사냥꾼
+            new UniqueDef { Id = "stormstring", Name = "폭풍의 시위", BaseId = "storm_recurve", EssenceId = "storm_forks",
+                Flavor = "시위를 당기면 하늘이 먼저 운다.",
+                Fixed = new[] { (Stat.FlatDamage, 11f), (Stat.ShockPct, 22f), (Stat.AttackSpeedPct, 8f), (Stat.ProjectileCount, 1f) } },
+            new UniqueDef { Id = "galewalkers", Name = "바람을 걷는 자", BaseId = "wind_striders", EssenceId = "gale_ward",
+                Flavor = "발자국 대신 바람만 남는다.",
+                Fixed = new[] { (Stat.MoveSpeedPct, 15f), (Stat.MaxHp, 35f), (Stat.DamageReductionPct, 4f), (Stat.AttackSpeedPct, 6f) } },
+            new UniqueDef { Id = "hawkeye_hood", Name = "매의 눈", BaseId = "hunter_hood", EssenceId = "hawk_mark",
+                Flavor = "한번 눈에 든 사냥감은 놓치지 않는다.",
+                Fixed = new[] { (Stat.CritChancePct, 6f), (Stat.CritDamagePct, 30f), (Stat.RangePct, 15f), (Stat.XpPct, 6f) } },
+            // 별점술사
+            new UniqueDef { Id = "fallen_star_staff", Name = "떨어진 별의 지팡이", BaseId = "star_staff", EssenceId = "star_fall",
+                Flavor = "하늘에서 떨어진 것은 다시 떨어지고 싶어 한다.",
+                Fixed = new[] { (Stat.FlatDamage, 12f), (Stat.EmberPct, 18f), (Stat.AreaPct, 15f), (Stat.CritDamagePct, 25f) } },
+            new UniqueDef { Id = "constellation_robe", Name = "별자리 법의", BaseId = "star_robe", EssenceId = "orbit_stars",
+                Flavor = "꿰맨 별들이 아직 제자리를 기억한다.",
+                Fixed = new[] { (Stat.MaxHp, 45f), (Stat.DamageReductionPct, 5f), (Stat.FrostPct, 20f), (Stat.ResonancePct, 15f) } },
+            new UniqueDef { Id = "timeeater_sash", Name = "시간을 삼킨 허리띠", BaseId = "ash_sash", EssenceId = "time_eater", ClassId = "starseer",
+                Flavor = "조여 맬수록 세상이 느려진다.",
+                Fixed = new[] { (Stat.CooldownPct, 10f), (Stat.MaxHp, 35f), (Stat.RegenPct, 0.8f), (Stat.XpPct, 8f) } },
         };
+
+        public static UniqueDef Unique(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+            foreach (var u in Uniques) if (u.Id == id) return u;
+            return null;
+        }
 
         static readonly string[] RareFirst = { "잿빛", "핏빛", "무덤", "등불", "부서진", "잠든", "울부짖는", "식은", "꺼진", "타다 남은" };
         static readonly Dictionary<Slot, string[]> RareSecond = new Dictionary<Slot, string[]>

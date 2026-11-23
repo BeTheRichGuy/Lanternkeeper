@@ -186,6 +186,8 @@ namespace Lanternkeeper.View
         readonly DropView _drops;
         /// <summary>Camera shake strength (world units), decays every frame.</summary>
         public float Shake;
+        /// <summary>0..1, set by a big blow and gone in a quarter second: the camera's bloom swells with it (GameBootstrap).</summary>
+        public float BloomKick;
 
         /// <summary>
         /// Hit-stop: the big moments play in slow motion for a beat (grand resonance, an act boss falling, a deep
@@ -499,9 +501,19 @@ namespace Lanternkeeper.View
             switch (ev.Type)
             {
                 case SimEventType.Cast when ev.Value > 1.6f:
+                {
                     _flashesThisFrame++;
                     Lights.FlashAt(at, FxView.ElementColor(ev.Elem), 1.1f, Mathf.Clamp(ev.Value * 0.7f, 1.6f, 4.5f), 0.35f);
+                    // An ultimate or a blast landing: a breath of added light over it and a swell of bloom (not on copies).
+                    var castDef = ev.SkillId != null ? SkillBook.Get(ev.SkillId) : null;
+                    bool landing = ev.SourceId == 0 && ev.SkillId != null && !ev.SkillId.EndsWith("_echo");
+                    if (landing || (castDef != null && castDef.Role == SkillRole.Ultimate && ev.Depth != 2))
+                    {
+                        Lights.Glow(at, FxView.ElementColor(ev.Elem), Mathf.Clamp(ev.Value * 0.8f, 1.6f, 3.6f), landing ? 0.3f : 0.45f, 0.22f);
+                        BloomKick = Mathf.Max(BloomKick, landing ? 0.5f : 1f);
+                    }
                     break;
+                }
                 case SimEventType.ChainPop when ev.Depth >= 2:
                     _flashesThisFrame++;
                     Lights.FlashAt(at, FxView.ElementColor(ev.Elem), 0.8f + 0.1f * Mathf.Min(ev.Depth, 6), 1.5f + 0.25f * Mathf.Min(ev.Depth, 6), 0.4f);
@@ -509,9 +521,12 @@ namespace Lanternkeeper.View
                 case SimEventType.Resonance:
                     _flashesThisFrame++;
                     Lights.FlashAt(at, FxView.ElementColor(ev.Elem), 1.25f, 2.6f, 0.5f);
+                    if (_flashesThisFrame == 1) Lights.Glow(at, FxView.ElementColor(ev.Elem), 1.3f, 0.28f, 0.16f);
                     break;
                 case SimEventType.Death when _units.TryGetValue(ev.TargetId, out var dead) && dead.Boss:
                     Lights.FlashAt(at, new Color(1f, 0.9f, 0.75f), 1.6f, 6f, 1.1f);
+                    Lights.Glow(at, new Color(1f, 0.9f, 0.75f), 4.5f, 0.6f, 0.35f);
+                    BloomKick = 1f;
                     Lights.Wave(at, new Color(1f, 0.93f, 0.8f), 34f, 2.4f, 1.8f, 0.9f); // 빛의 파도: the dark lifts off the floor
                     break;
                 case SimEventType.LevelUp:
@@ -848,6 +863,8 @@ namespace Lanternkeeper.View
                     if (!Vfx.Spawn("grand_" + ElementName(ev.Elem), ev.Pos, 1f, null, 0f, false, 0f, true))
                         Vfx.Spawn("grand_ember", ev.Pos, 1f, FxView.ElementColor(Elements.Next(ev.Elem)), 0f, false, 0f, true);
                     Shake = Mathf.Max(Shake, 0.18f);
+                    Lights.Glow(IsoProjection.ToWorld(ev.Pos) + new Vector3(0f, 0.3f, 0f), FxView.ElementColor(Elements.Next(ev.Elem)), 4f, 0.5f, 0.28f);
+                    BloomKick = 1f;
                     Lights.FlashAt(IsoProjection.ToWorld(ev.Pos), FxView.ElementColor(Elements.Next(ev.Elem)), 1.8f, 7f, 1.3f);
                     Lights.Wave(IsoProjection.ToWorld(ev.Pos), FxView.ElementColor(Elements.Next(ev.Elem)), 18f, 1.5f, 1.3f, 0.4f);
                     break;
@@ -1619,6 +1636,7 @@ namespace Lanternkeeper.View
 
             _drops.Render(dt, heroPos);
             Shake = Mathf.Max(0f, Shake - dt * 0.8f);
+            BloomKick = Mathf.Max(0f, BloomKick - Time.unscaledDeltaTime * 4f);
             Fx.Render(dt, heroPos, _world.Hero.Pos.X != _world.Hero.PrevPos.X || _world.Hero.Pos.Y != _world.Hero.PrevPos.Y);
             Numbers.Render(dt);
             Vfx.Render(dt, IsoProjection.ToWorld(heroPos));

@@ -37,6 +37,7 @@ namespace Lanternkeeper.View
         ClassSelectPanel _classSelect;
         FirstTips _tips;
         EventPrompt _eventPrompt;
+        LootReveal _reveal;
         bool _hudHiddenForClass;
         bool _firstRun;
         OfflinePanel _offline;
@@ -141,6 +142,8 @@ namespace Lanternkeeper.View
             _banner = new LootBanner(_ui);
             _tips = new FirstTips(_ui); // UX plan D4: first-time lines
             _eventPrompt = new EventPrompt(_ui); // UX plan D7: the event's choices as a box over the windows
+            _reveal = new LootReveal(_ui); // 11-24: a legendary or unique find gets its own card
+            _reveal.OnOpenBag = () => { if (!_gear.Visible) OpenFromMenu(0); };
             if (report != null && !report.Empty)
             {
                 _offline.Show(report, World);
@@ -325,7 +328,7 @@ namespace Lanternkeeper.View
         ShadowsMidtonesHighlights _smh;
         bool _postSnap = true;
         Color _vigColor = Color.black;
-        float _vigIntensity = 0.3f, _hurt;
+        float _vigIntensity = 0.3f, _hurt, _bloomBase = 0.35f;
 
         void SetupPostProcessing()
         {
@@ -409,7 +412,9 @@ namespace Lanternkeeper.View
             var p = ActPost[Mathf.Clamp(World.ActLoop, 0, ActPost.Length - 1)];
             float k = _postSnap ? 1f : 1f - Mathf.Exp(-dt * 2.5f);
             _postSnap = false;
-            _bloom.intensity.value = Mathf.Lerp(_bloom.intensity.value, p.bloom, k);
+            // Audit 11-24: the act's bloom, swelled for a quarter second by a big blow (ultimate, grand resonance, a boss's fall).
+            _bloomBase = Mathf.Lerp(_bloomBase, p.bloom, k);
+            _bloom.intensity.value = _bloomBase * (1f + 1.2f * (_view != null ? _view.BloomKick : 0f));
             _grade.contrast.value = Mathf.Lerp(_grade.contrast.value, p.contrast, k);
             _grade.saturation.value = Mathf.Lerp(_grade.saturation.value, p.sat, k);
             _smh.shadows.value = Vector4.Lerp(_smh.shadows.value, p.shadows, k);
@@ -502,6 +507,10 @@ namespace Lanternkeeper.View
                 case 8: World.AutoIgnite = !World.AutoIgnite; _saveSoon = true; break;
                 case 9: GameSettings.ToggleNotices(); break;
                 case 10: GameSettings.ToggleBlood(); break;
+                case 11:
+                    UiFont.CycleNext();
+                    _toasts.Setting("글꼴 · " + UiFont.SetNames[UiFont.NextSet] + (UiFont.NextSet != UiFont.Set ? " (다시 시작하면 바뀝니다)" : ""));
+                    break;
             }
             RefreshSettings();
         }
@@ -528,6 +537,10 @@ namespace Lanternkeeper.View
                     }
                 _minimap.OnTick();
                 _toasts.OnTick(World.Events, World);
+                _reveal.OnTick(World.Events);
+                // The world holds its breath for a legendary or unique as its shaft lands (11-24, the D2 "orange beam" beat).
+                foreach (var ev in World.Events)
+                    if (ev.Type == SimEventType.Drop && ev.Item != null && ev.Item.Rarity >= Rarity.Legendary) { _view.SlowMo(0.35f, 0.4f); break; }
                 _banner.OnTick(World.Events);
                 _tips.OnTick(World);
                 _hunt.OnTick(World.Events);
@@ -588,6 +601,7 @@ namespace Lanternkeeper.View
             _tips.Hidden = _uiHidden || _offline.Visible || _classSelect.Visible || _augment.Visible;
             _tips.Render(Time.unscaledDeltaTime);
             _eventPrompt.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible);
+            _reveal.Render(World, _uiHidden || _offline.Visible || _classSelect.Visible || _anyWindowWas || _character.Visible); // never over a window
             _banner.Update(Time.unscaledDeltaTime);
 
             var kb = UnityEngine.InputSystem.Keyboard.current;

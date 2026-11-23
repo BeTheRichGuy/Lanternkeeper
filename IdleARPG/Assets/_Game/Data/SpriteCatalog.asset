@@ -24263,6 +24263,104 @@ MonoBehaviour:
     fps: 10
     mirrorMask: 0
     loop: 0
+  - key: icon/item_unique_constellation_robe
+    sprites:
+    - {fileID: 21300000, guid: 9f896801b4de0484aa77bd3297aab0a0, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_crown_of_cinders
+    sprites:
+    - {fileID: 21300000, guid: bde8f5e238075a744b5aad51f915d8cc, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_dead_kings_seal
+    sprites:
+    - {fileID: 21300000, guid: 42a8f43142586f547891023140de5272, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_fallen_star_staff
+    sprites:
+    - {fileID: 21300000, guid: acfd13b7e764ef244bcd59723dc04a1f, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_furnace_heart
+    sprites:
+    - {fileID: 21300000, guid: 792c1686241f2164e87ea1ff55e69768, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_galewalkers
+    sprites:
+    - {fileID: 21300000, guid: 8f2a29db91492a34fb58e2252ecf5d5a, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_gravekeepers_oath
+    sprites:
+    - {fileID: 21300000, guid: 117b0c952c901bb47be4797cd623d319, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_hawkeye_hood
+    sprites:
+    - {fileID: 21300000, guid: 261d96f0693512a46a05e9a4130d48b4, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_judges_vow
+    sprites:
+    - {fileID: 21300000, guid: 640b8e5f858865145811e22ca47683ab, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_pilgrims_grasp
+    sprites:
+    - {fileID: 21300000, guid: fe62c0fd380698843bb4587098d1cb52, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_silent_vow
+    sprites:
+    - {fileID: 21300000, guid: 145dfba550ab0c147879784cb5ab83ed, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_stormstring
+    sprites:
+    - {fileID: 21300000, guid: 4186e1c4a3b403c4faca3d1f4b09503f, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_timeeater_sash
+    sprites:
+    - {fileID: 21300000, guid: 737328e5fb62eb64a8628f69f72a03b3, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
+  - key: icon/item_unique_unquenched_wick
+    sprites:
+    - {fileID: 21300000, guid: 0bcf76384ce195c48ae55e7588f03619, type: 3}
+    frames: 0
+    fps: 10
+    mirrorMask: 0
+    loop: 0
   - key: icon/item_void_orb
     sprites:
     - {fileID: 21300000, guid: ab9d0a8284b282c45ba3045be316bf97, type: 3}

@@ -205,8 +205,10 @@ namespace Lanternkeeper.View
                 head.gameObject.name = "row#" + b;
                 _rowBits.Add(head.gameObject);
                 // Spelled as a condition, in a readable colour (loop 2: "갈래 포인트 4 · 9 · 15" was near-invisible grey).
-                var keys = UiKit.Label(_treeLayer, "핵심 특성\n<color=#c8c0a8>갈래에 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트 쓰면 열림</color>",
-                    440f, 196f, 160f, 30f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+                // One line that fits (critique 5 P0: the long sentence wrapped under the I node).
+                var keys = UiKit.Label(_treeLayer, "핵심 특성  <color=#c8c0a8>" + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트</color>",
+                    440f, 210f, 220f, 16f, 12, TextAnchor.UpperLeft, UiKit.Dim);
+                keys.horizontalOverflow = HorizontalWrapMode.Overflow;
                 keys.gameObject.name = "row#" + b;
                 _rowBits.Add(keys.gameObject);
             }
@@ -417,11 +419,10 @@ namespace Lanternkeeper.View
             else
             {
                 // Nothing pointed at: how to read the tree.
-                _cardName.text = "스킬 트리";
-                _cardBody.text = "갈래마다 탭이 있다. 위에서 아래로 스킬이 열리고, 레벨이 오를 때마다 포인트가 1씩 생긴다.\n\n"
-                    + "큰 칸 · 스킬 (스킬 칸에 넣을 수 있다)\n옆 작은 칸 둘 · 변형 (그 스킬만 강해진다)\n오른쪽 칸 · 진화 (숙련 " + SkillTree.EvoMastery + ")\n"
-                    + "오른쪽 · 궁극기, 핵심 특성, 갈래 강화\n<color=#8a8178>궁극기는 Lv" + SkillBook.UltimateLevel + "부터, 둘 중 하나만</color>\n\n"
-                    + "<color=#8a8178>칸에 커서를 올리면 설명이 나오고, 클릭하면 포인트를 넣습니다.</color>";
+                // Critique 5: the card is for the node pointed at; with none, only the three things a reader needs.
+                _cardName.text = "칸에 마우스를 올려 보세요";
+                _cardBody.text = "<color=#8a8178>설명이 여기 나옵니다. 클릭하면 포인트 1을 넣습니다.</color>\n\n"
+                    + "<color=#ffcf5a>●</color> 큰 칸  스킬\n<color=#ffcf5a>·</color> 작은 칸  그 스킬의 변형\n<color=#ffcf5a>◆</color> 오른쪽 칸  진화 (숙련 " + SkillTree.EvoMastery + ")";
                 _cardIcon.enabled = false;
                 _cardFrame.enabled = false;
             }

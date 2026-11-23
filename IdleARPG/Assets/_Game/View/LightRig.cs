@@ -91,7 +91,29 @@ namespace Lanternkeeper.View
             {
                 _glowMat = new Material(glow);
                 _raySprite = MakeScatter(128, 7);
+                for (int i = 0; i < _halos.Length; i++)
+                {
+                    var sr = NewScatter("Halo", _falloff, _glowMat);
+                    sr.enabled = false;
+                    _halos[i] = new Halo { Sr = sr };
+                }
             }
+        }
+
+        // ---------- 임팩트 글로우 (audit 11-24: light is its own layer over the pixels, only for the frames of the blow) ----------
+        sealed class Halo { public SpriteRenderer Sr; public Color C; public float T, Life, A, R; }
+        readonly Halo[] _halos = new Halo[6];
+        int _nextHalo;
+
+        /// <summary>A soft added glow in the air over a big blow, gone in <paramref name="life"/> seconds (the bloom carries it).</summary>
+        public void Glow(Vector3 world, Color color, float radius, float strength, float life)
+        {
+            var h = _halos[_nextHalo];
+            if (h == null) return;
+            _nextHalo = (_nextHalo + 1) % _halos.Length;
+            h.C = color; h.T = 0f; h.Life = life; h.A = strength; h.R = radius;
+            h.Sr.transform.localPosition = world;
+            h.Sr.enabled = true;
         }
 
         Material _glowMat;
@@ -384,6 +406,15 @@ namespace Lanternkeeper.View
                 Shape(w.L, w.At, Mathf.Max(0.5f, w.R * grow));
             }
 
+            foreach (var h in _halos)
+            {
+                if (h == null || !h.Sr.enabled) continue;
+                h.T += dt;
+                if (h.T >= h.Life) { h.Sr.enabled = false; continue; }
+                float k = h.T / h.Life, s = h.R * (0.8f + 0.2f * k);
+                h.Sr.transform.localScale = new Vector3(s, s * 0.8f, 1f);
+                Tint(h.Sr, new Color(h.C.r, h.C.g, h.C.b, h.A * (1f - k) * (1f - k)));
+            }
             foreach (var f in _flashes)
             {
                 if (!f.L.enabled) continue;

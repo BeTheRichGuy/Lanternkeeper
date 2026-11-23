@@ -46,7 +46,9 @@ namespace Lanternkeeper.Sim
 
         /// <summary>★ from act II (area Lv10, was 20 ≈ 9 hours in): the early hours get a chase beyond rarity colours.</summary>
         public const int GreaterFrom = 10;
-        public const float LegendaryWeight = 0.4f, UniqueWeight = 0.2f;
+        // 11-24 (희승 "디아블로에서 먹었을때는 되게 기분 좋았는데"): uniques measured 1.8 an hour over 12 h × 4 classes;
+        // half the weight gives about one an hour, the rarity the research puts a unique at (1124_legendary_drop_feel.md).
+        public const float LegendaryWeight = 0.4f, UniqueWeight = 0.1f;
 
         /// <summary><paramref name="slot"/>: only bases of that slot (도박, GDD §9); a unique then becomes a legendary.</summary>
         public static Item Roll(SimRng rng, int uid, int ilvl, Rarity rarity, Slot? slot, float greaterChance, string classId = null)
@@ -99,7 +101,9 @@ namespace Lanternkeeper.Sim
             switch (rarity)
             {
                 case Rarity.Legendary:
-                    var ess = ItemData.Essences[rng.Range(0, ItemData.Essences.Length)];
+                    // 11-24: only powers of the hero's class (a 별점술사 never rolls a 휠윈드 power), never a unique's own.
+                    var powers = Array.FindAll(ItemData.Essences, x => !x.UniqueOnly && x.Fits(classId));
+                    var ess = powers[rng.Range(0, powers.Length)];
                     item.EssenceId = ess.Id;
                     item.Name = ess.Adjective + " " + b.Name;
                     break;
@@ -164,11 +168,11 @@ namespace Lanternkeeper.Sim
             return new AffixRoll { Stat = def.Stat, Value = WholeIfCount(def.Stat, Round(rng.Range(def.Min, def.Max) * ItemData.TierScale[tier - 1]), tier), Tier = tier };
         }
 
-        static bool HasUniqueFor(string classId) => Array.Exists(ItemData.Uniques, u => ItemData.Base(u.BaseId).Fits(classId));
+        static bool HasUniqueFor(string classId) => Array.Exists(ItemData.Uniques, u => u.Fits(classId));
 
         static Item RollUnique(SimRng rng, int uid, int ilvl, string classId)
         {
-            var mine = Array.FindAll(ItemData.Uniques, x => ItemData.Base(x.BaseId).Fits(classId));
+            var mine = Array.FindAll(ItemData.Uniques, x => x.Fits(classId));
             var u = mine[rng.Range(0, mine.Length)];
             var b = ItemData.Base(u.BaseId);
             int tier = ItemData.MaxTier(ilvl);
@@ -180,12 +184,28 @@ namespace Lanternkeeper.Sim
                 Ilvl = ilvl,
                 ReqLevel = Math.Max(1, ilvl - 5),
                 Name = u.Name,
+                UniqueId = u.Id,
                 EssenceId = u.EssenceId,
                 Implicit = new AffixRoll { Stat = b.ImplicitStat, Value = Round(b.ImplicitValue * (1f + (ilvl - 1) / 20f)), Tier = 0 },
             };
             foreach (var (stat, value) in u.Fixed)
-                item.Affixes.Add(new AffixRoll { Stat = stat, Value = Round(value * (1f + (ilvl - 15) / 40f)), Tier = tier });
+                item.Affixes.Add(new AffixRoll { Stat = stat, Value = stat == Stat.ProjectileCount ? value : Round(value * (1f + (ilvl - 15) / 40f)), Tier = tier });
             return item;
+        }
+
+        /// <summary>
+        /// 11-24: a unique from an older save has no <see cref="Item.UniqueId"/> (found by its name) and may carry the power
+        /// its unique had then (four weapons shared 재를 먹는): it takes the unique's id and its own power now. True when it changed.
+        /// </summary>
+        public static bool AdoptUnique(Item it)
+        {
+            if (it == null || it.Rarity != Rarity.Unique) return false;
+            var u = ItemData.Unique(it.UniqueId);
+            if (u == null) foreach (var x in ItemData.Uniques) if (x.Name == it.Name) u = x;
+            if (u == null || (it.UniqueId == u.Id && it.EssenceId == u.EssenceId)) return false;
+            it.UniqueId = u.Id;
+            it.EssenceId = u.EssenceId;
+            return true;
         }
 
         static float Round(float v) => (float)Math.Round(v, 1);

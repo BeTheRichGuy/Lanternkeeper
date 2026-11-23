@@ -25,6 +25,14 @@ namespace Lanternkeeper.View
             public int Bias;
             public Vector3 A, B;
             public float Travel;
+            /// <summary>Hierarchy (audit 11-24): which sheet this is and where, so repeats on one spot can step back.</summary>
+            public string Id;
+            public Vector2 At;
+            /// <summary>A wide sheet over the units: when its biggest frame shows, and how faint it settles after it.</summary>
+            public float PeakAt, Settle = 1f;
+            /// <summary>The same frames drawn again as pure light for the few frames round the peak (the bloom catches it).</summary>
+            public SpriteRenderer Glow;
+            public Color GlowTint;
         }
 
         readonly Transform _root;
@@ -49,7 +57,78 @@ namespace Lanternkeeper.View
 
         public bool Has(string id) => _catalog.Has($"vfx/{id}/front") || _catalog.Has($"vfx/{id}/whole");
 
-        public void BeginTick() => _spentThisTick = 0;
+        public void BeginTick() { _spentThisTick = 0; _tickIds.Clear(); }
+
+        // ---------- hierarchy (audit 11-24: 159 sheets at once, a 10-unit sheet opaque over every unit) ----------
+        readonly Dictionary<string, int> _tickIds = new Dictionary<string, int>();
+        readonly Dictionary<Sprite[], float> _peaks = new Dictionary<Sprite[], float>();
+        readonly Stack<SpriteRenderer> _glowPool = new Stack<SpriteRenderer>();
+        readonly MaterialPropertyBlock _glowBlock = new MaterialPropertyBlock();
+        static readonly int TintId = Shader.PropertyToID("_Tint");
+        Material _glowMat;
+        /// <summary>A sheet this wide (world units) covers a pack: it gets the impact glow, then steps back.</summary>
+        const float Wide = 2.5f;
+        const float GlowLen = 0.2f;
+
+        /// <summary>
+        /// Seconds into the clip of the frame that covers most (the blow): the first frame whose sprite mesh (cut tight
+        /// round the drawn pixels) reaches 90% of the largest. Sheets with no tight mesh: a third of the way in.
+        /// </summary>
+        float PeakTime(Sprite[] frames, float fps)
+        {
+            if (_peaks.TryGetValue(frames, out float at)) return at;
+            var area = new float[frames.Length];
+            float max = 0f, min = float.MaxValue;
+            for (int i = 0; i < frames.Length; i++)
+            {
+                var v = frames[i].vertices;
+                var tri = frames[i].triangles;
+                float a = 0f;
+                for (int k = 0; k + 2 < tri.Length; k += 3)
+                {
+                    Vector2 p0 = v[tri[k]], e1 = v[tri[k + 1]] - p0, e2 = v[tri[k + 2]] - p0;
+                    a += Mathf.Abs(e1.x * e2.y - e1.y * e2.x) * 0.5f;
+                }
+                area[i] = a;
+                max = Mathf.Max(max, a); min = Mathf.Min(min, a);
+            }
+            int peak = Mathf.RoundToInt(frames.Length * 0.35f);
+            if (max - min > max * 0.05f)
+                for (int i = 0; i < frames.Length; i++) if (area[i] >= max * 0.9f) { peak = i; break; }
+            return _peaks[frames] = peak / Mathf.Max(1f, fps);
+        }
+
+        /// <summary>Live plays of the same sheet that began within the last half second on this spot.</summary>
+        int Repeats(string id, Vector2 at, float reach)
+        {
+            int n = 0;
+            foreach (var p in _live)
+                if (p.Id == id && p.T < 0.5f && (p.At - at).sqrMagnitude < reach * reach) n++;
+            return n;
+        }
+
+        SpriteRenderer NewGlow()
+        {
+            if (_glowPool.Count > 0) return _glowPool.Pop();
+            if (_glowMat == null)
+            {
+                var shader = Resources.Load<Shader>("Shaders/AdditiveGlow");
+                if (shader == null) return null;
+                _glowMat = new Material(shader);
+            }
+            var sr = new GameObject("vfx glow").AddComponent<SpriteRenderer>();
+            sr.transform.SetParent(_root, false);
+            sr.sharedMaterial = _glowMat;
+            return sr;
+        }
+
+        void Release(Play p)
+        {
+            p.Sr.enabled = true; // a delayed leg that never showed must not go back to the pool hidden
+            p.Sr.gameObject.SetActive(false);
+            _pool.Push(p.Sr);
+            if (p.Glow != null) { p.Glow.gameObject.SetActive(false); _glowPool.Push(p.Glow); p.Glow = null; }
+        }
 
         /// <summary>
         /// Play effect <paramref name="id"/> anchored on grid point <paramref name="cell"/>.
@@ -96,6 +175,28 @@ namespace Lanternkeeper.View
         {
             if (!important && _spentThisTick >= BudgetPerTick) return false;
             var world = IsoProjection.ToWorld(cell);
+            // Hierarchy: the sheet's drawn width decides how much room it may take.
+            float alphaMul = 1f, width = 0f;
+            foreach (var sizeLayer in new[] { "front", "whole", "behind" })
+                if (_catalog.TryGetClip($"vfx/{id}/{sizeLayer}", out var sized, out _, out _)) { width = sized[0].bounds.size.x; break; }
+            // One pixel density on screen: a sheet is drawn at a whole multiple of its art, like the units (1.5x put 3-px
+            // texels beside their 2-px ones, 0.5x put 1-px sparks on them); a sheet already wide is never doubled.
+            if (stretch == default) scale = width >= Wide ? 1f : Mathf.Max(1f, Mathf.Round(scale - 0.01f));
+            float drawn = width * scale;
+            bool wide = drawn >= Wide && stretch == default;
+            var at2 = new Vector2(world.x, world.y);
+            if (holdSeconds <= 0f && stretch == default)
+            {
+                _tickIds.TryGetValue(id, out int sameTick);
+                if (sameTick >= (wide ? 2 : important ? 12 : 8)) return false;
+                _tickIds[id] = sameTick + 1;
+                // The first on a spot is the blow; a second within half a second is fainter, a third is not drawn.
+                // Wide sheets keep to this even when "important": delayed blasts and evolved skills all come in as
+                // important, and five ice fields over one pack made a wall (round 1 capture 040355).
+                int again = Repeats(id, at2, Mathf.Max(0.6f, drawn * 0.5f));
+                if (again >= 2 && (wide || !important)) return false;
+                if (again >= 1) alphaMul = important && !wide ? 0.75f : 0.6f;
+            }
             bool any = false;
             foreach (var (layer, bias) in new[] { ("behind", -2), ("front", 30), ("whole", 30) })
             {
@@ -106,21 +207,41 @@ namespace Lanternkeeper.View
                 sr.sharedMaterial = recolor == Element.None ? _material : RampMaterial(recolor); // pooled: always set
                 var tc = tint ?? Color.white;
                 if (!important) tc.a *= GameSettings.FxAlpha; // 설정: 스킬 효과 강도
+                tc.a *= alphaMul;
+                if (ground) tc.a *= 0.75f; // a field is floor, never a lit slab: it starts under full strength and settles
                 sr.color = tc;
                 sr.flipX = flipX;
                 sr.sortingOrder = ground ? GroundOrder : IsoProjection.SortOrder(world, bias);
                 var t = sr.transform;
                 t.localPosition = world;
                 t.localRotation = Quaternion.Euler(0f, 0f, rotationDeg);
-                // A scaled sheet keeps even pixels: the scale is snapped so each art texel covers a whole number of the
-                // world texture's pixels (review 11-23: 1.25× sheets had uneven, mixed-size pixels).
-                float s = scale;
-                if (stretch == default) { int n = WorldPresenter.Whole; s = Mathf.Max(1, Mathf.Round(scale * n)) / n; }
-                t.localScale = stretch == default ? new Vector3(s, s, 1f) : new Vector3(stretch.x, stretch.y, 1f);
+                t.localScale = stretch == default ? new Vector3(scale, scale, 1f) : new Vector3(stretch.x, stretch.y, 1f);
                 float length = frames.Length / Mathf.Max(1f, fps);
                 bool frontDecay = !ground && !important && holdSeconds <= 0f && layer != "behind" && length > 0.25f;
-                _live.Add(new Play { Sr = sr, Frames = frames, Fps = fps, Loop = loop || holdSeconds > 0f, Until = holdSeconds > 0f ? holdSeconds : length, Base = sr.color,
-                    FollowHero = followHero, Bias = bias, Ground = ground, FrontDecay = frontDecay });
+                var play = new Play { Sr = sr, Frames = frames, Fps = fps, Loop = loop || holdSeconds > 0f, Until = holdSeconds > 0f ? holdSeconds : length, Base = sr.color,
+                    FollowHero = followHero, Bias = bias, Ground = ground, FrontDecay = frontDecay && !wide, Id = id, At = at2 };
+                // A wide sheet over the units: full for its blow, lit by a pass of pure light round it, then faint enough
+                // that the pack under it reads (D2 draws its spells as light over the monsters, not paint).
+                if (wide && !ground && holdSeconds <= 0f && layer != "behind")
+                {
+                    play.PeakAt = PeakTime(frames, fps);
+                    play.Settle = important ? 0.6f : 0.45f;
+                    play.Glow = NewGlow();
+                    if (play.Glow != null)
+                    {
+                        var g = play.Glow;
+                        g.gameObject.SetActive(true);
+                        g.enabled = false;
+                        g.flipX = flipX;
+                        g.sortingOrder = sr.sortingOrder + 1;
+                        g.transform.localPosition = t.localPosition;
+                        g.transform.localRotation = t.localRotation;
+                        g.transform.localScale = t.localScale;
+                        var gt = recolor == Element.None ? Color.white : Ramps[Mathf.Clamp((int)recolor, 1, Ramps.Length - 1)].mid;
+                        play.GlowTint = new Color(gt.r * tc.r, gt.g * tc.g, gt.b * tc.b, tc.a);
+                    }
+                }
+                _live.Add(play);
                 any = true;
             }
             if (any && !important) _spentThisTick++;
@@ -199,9 +320,7 @@ namespace Lanternkeeper.View
                 p.T += dt;
                 if (p.T >= p.Until)
                 {
-                    p.Sr.enabled = true; // a delayed leg that never showed must not go back to the pool hidden
-                    p.Sr.gameObject.SetActive(false);
-                    _pool.Push(p.Sr);
+                    Release(p);
                     _live.RemoveAt(i);
                     continue;
                 }
@@ -237,6 +356,24 @@ namespace Lanternkeeper.View
                 }
                 // 11-23: 0.35 left most of every drawn effect faint after a quarter second (희승: 이펙트가 너무 단순해 보인다).
                 if (p.FrontDecay && p.T > 0.25f) c.a *= Mathf.Lerp(1f, 0.6f, Mathf.Clamp01((p.T - 0.25f) / 0.2f));
+                if (p.Settle < 1f)
+                {
+                    float since = p.T - p.PeakAt;
+                    if (since > 0.12f) c.a *= Mathf.Lerp(1f, p.Settle, Mathf.Clamp01((since - 0.12f) / 0.2f));
+                    if (p.Glow != null)
+                    {
+                        // Pure light for the blow: up in two frames before the peak, out over GlowLen after it.
+                        float g = since < 0f ? Mathf.Clamp01(1f + since / 0.04f) : Mathf.Clamp01(1f - since / GlowLen);
+                        p.Glow.enabled = g > 0.01f;
+                        if (p.Glow.enabled)
+                        {
+                            p.Glow.sprite = p.Sr.sprite;
+                            p.Glow.GetPropertyBlock(_glowBlock);
+                            _glowBlock.SetColor(TintId, new Color(p.GlowTint.r, p.GlowTint.g, p.GlowTint.b, 0.55f * g * g * p.GlowTint.a));
+                            p.Glow.SetPropertyBlock(_glowBlock);
+                        }
+                    }
+                }
                 if (k > 0.85f) c.a *= Mathf.Clamp01((1f - k) / 0.15f);
                 p.Sr.color = c;
             }
@@ -246,7 +383,7 @@ namespace Lanternkeeper.View
 
         public void Clear()
         {
-            foreach (var p in _live) { p.Sr.enabled = true; p.Sr.gameObject.SetActive(false); _pool.Push(p.Sr); }
+            foreach (var p in _live) Release(p);
             _live.Clear();
         }
     }

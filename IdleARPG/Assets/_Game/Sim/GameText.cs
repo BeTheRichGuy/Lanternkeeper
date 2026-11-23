@@ -311,8 +311,8 @@ namespace Lanternkeeper.Sim
                 case Lanternkeeper.Sim.Rarity.Common: return "일반 — 가장 낮은 등급. 장비 종류마다 정해진 기본 옵션 한 줄만 있습니다.";
                 case Lanternkeeper.Sim.Rarity.Magic: return "마법 — 일반보다 위. 기본 옵션에 추가 옵션이 1~2줄 붙습니다.";
                 case Lanternkeeper.Sim.Rarity.Rare: return "희귀 — 마법보다 위. 추가 옵션이 3~4줄 붙고, ★ 대옵션(수치 1.5배인 줄)이 나올 수 있습니다.";
-                case Lanternkeeper.Sim.Rarity.Legendary: return "전설 — 희귀보다 위. 추가 옵션 3줄에 전설 효과 하나가 붙고, ★ 대옵션도 나올 수 있습니다.";
-                case Lanternkeeper.Sim.Rarity.Unique: return "고유 — 가장 높은 등급. 이름과 옵션 4줄, 고유 효과가 정해져 있는 장비로 통합 레벨 15부터 나옵니다.";
+                case Lanternkeeper.Sim.Rarity.Legendary: return "전설 — 희귀보다 위. 추가 옵션 3줄에 내 직업 스킬이 움직이는 방식을 바꾸는 전설 효과 하나가 붙고, ★ 대옵션도 나올 수 있습니다.";
+                case Lanternkeeper.Sim.Rarity.Unique: return "고유 — 가장 높은 등급. 직업마다 셋, 모두가 함께 쓰는 장신구 둘이 있는 이름난 장비로, 옵션 4줄과 그 장비에만 있는 고유 효과가 정해져 있습니다. 통합 레벨 15부터 나옵니다.";
                 default: return "";
             }
         }

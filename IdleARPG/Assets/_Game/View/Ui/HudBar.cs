@@ -202,7 +202,7 @@ namespace Lanternkeeper.View
             _boss = UiKit.Rect(_root, "boss", 0f, 0f, BossW, 44f);
             _boss.anchorMin = _boss.anchorMax = new Vector2(0.5f, 1f);
             _boss.pivot = new Vector2(0.5f, 1f);
-            _boss.anchoredPosition = new Vector2(0f, -36f);
+            _boss.anchoredPosition = new Vector2(0f, -54f); // under the 다음: line (critique 5 P0: the boss name sat on it)
             _bossGroup = _boss.gameObject.AddComponent<CanvasGroup>();
             _bossGroup.blocksRaycasts = false;
             _bossName = UiKit.Label(_boss, "", 0f, 0f, BossW, 16f, 12, TextAnchor.UpperCenter, new Color(1f, 0.8f, 0.7f), title: true);

@@ -44,6 +44,8 @@ namespace Lanternkeeper.Sim
         public List<AffixRoll> Affixes = new List<AffixRoll>();
         /// <summary>Legendary power (GDD §8.5) or unique effect id; empty if none.</summary>
         public string EssenceId = "";
+        /// <summary>Which <see cref="ItemData.Uniques"/> entry this is ("" for every other item; old saves: filled on load).</summary>
+        public string UniqueId = "";
         /// <summary>야영지 대장장이 명품화 0..12: every stat of the item +8% per step (GDD §14).</summary>
         public int Masterwork;
         /// <summary>GDD §8.7 sockets (0–3) and the runes in them, in order (Rune values).</summary>
@@ -110,11 +112,27 @@ namespace Lanternkeeper.Sim
     public sealed class EssenceDef
     {
         public string Id, Adjective, Text;
+        /// <summary>Classes whose legendaries may roll it (null: every class) — a 별점술사 never finds a 휠윈드 power.</summary>
+        public string[] Classes;
+        /// <summary>A unique's own power: never rolled on a legendary.</summary>
+        public bool UniqueOnly;
+
+        public bool Fits(string classId) => Classes == null || classId == null || Array.IndexOf(Classes, classId) >= 0;
     }
 
     public sealed class UniqueDef
     {
         public string Id, Name, BaseId, EssenceId;
+        /// <summary>One line of lore under the name (D2-style), at most 40 characters.</summary>
+        public string Flavor;
+        /// <summary>The class it drops for when its base is shared (a belt); null: the base's class (or every class).</summary>
+        public string ClassId;
         public (Stat stat, float value)[] Fixed;
+
+        public bool Fits(string classId)
+        {
+            var b = ItemData.Base(BaseId);
+            return ClassId != null ? classId == null || ClassId == classId : b.Fits(classId);
+        }
     }
 }
