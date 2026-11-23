@@ -265,8 +265,10 @@ namespace Lanternkeeper.View
             Numbers = new DamageNumbers(root);
             Vfx = new VfxPlayer(root, catalog, material);
             Director = new VfxDirector(root, world);
-            // Floor waves drawn as sheets (PVFX rings): on the ground layer, whole-texel scale, under the per-tick budget.
-            Director.Sheet = (id, cell, scale) => Vfx.Spawn(id, cell, scale, null, 0f, false, 0f, false, default, false, ground: true);
+            // Drawn sheets for the director (PVFX floor rings, tears, splats, resonance layers): whole-texel scale, under the
+            // per-tick budget; floor waves on the ground layer, the rest sorted with the units.
+            Director.Sheet = (id, cell, scale, flip, ground, recolor) =>
+                Vfx.Spawn(id, cell, scale, null, 0f, flip, 0f, false, default, false, ground: ground, recolor: recolor);
             _drops = new DropView(root, catalog, material);
         }
 

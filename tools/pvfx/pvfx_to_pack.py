@@ -20,7 +20,22 @@ ap.add_argument("pack")
 ap.add_argument("--variant")
 ap.add_argument("--tier", default="lit")
 ap.add_argument("--scale", type=int, default=1)
+ap.add_argument("--ramp", help="five hex colours dark->light: every opaque pixel is repainted by brightness (our PixelRamp)")
 a = ap.parse_args()
+ramp = [tuple(int(h.strip("#")[i:i + 2], 16) for i in (0, 2, 4)) for h in a.ramp.split(",")] if a.ramp else None
+
+
+def repaint(img):
+    """Onto the game's five tones by brightness (strict tier: hard alpha), so a borrowed sheet speaks our palette."""
+    px = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, al = px[x, y]
+            if al == 0:
+                continue
+            l = (r * 0.3 + g * 0.59 + b * 0.11) / 255.0
+            px[x, y] = ramp[min(4, int(l * 5))] + (al,)
+    return img
 
 src = os.path.join(a.effect, "variants", a.variant) if a.variant else a.effect
 src = os.path.join(src, a.tier, "grid")
@@ -40,6 +55,8 @@ for f, r in zip(frames, reps):
     img = sheet.crop((s["x"], s["y"], s["x"] + s["width"], s["y"] + s["height"]))
     if img.size != (W, H):  # grid cells are the full canvas; guard anyway
         full = Image.new("RGBA", (W, H)); full.paste(img, (0, 0)); img = full
+    if ramp:
+        img = repaint(img.copy())
     if a.scale > 1:
         img = img.resize((W * a.scale, H * a.scale), Image.NEAREST)
     cells += [img] * r
@@ -72,5 +89,5 @@ manifest = {
 json.dump(manifest, open(os.path.join(dst, "manifest.json"), "w", encoding="utf-8"), indent=1)
 open(os.path.join(dst, "SOURCE.txt"), "w", encoding="utf-8").write(
     f"PVFX Foundry 1.2 by nerijs - CC0 1.0 - https://nerijs.itch.io/pvfx-foundry\n"
-    f"effect: {man['program']}  variant: {a.variant or '-'}  tier: {a.tier}  scale: {a.scale}\n")
+    f"effect: {man['program']}  variant: {a.variant or '-'}  tier: {a.tier}  scale: {a.scale}  ramp: {a.ramp or '-'}\n")
 print(f"{a.pack}: {n} frames ({len(frames)} source) {fw}x{fh} @ {fps} fps, pivot {px},{py}, loop={loop}")

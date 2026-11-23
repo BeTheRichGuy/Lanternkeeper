@@ -433,7 +433,7 @@ namespace Lanternkeeper.View
         public readonly PixelShapes Shapes;
         public readonly PixelParticles Parts;
         readonly SimWorld _world;
-        int _hits, _deaths, _casts, _shots;
+        int _hits, _deaths, _casts, _shots, _resSheets, _tears, _splats;
         float _sigilReadyAt, _beamReadyAt;
         bool _drawn;
 
@@ -444,8 +444,23 @@ namespace Lanternkeeper.View
         public System.Action<Color, float> ImpactFrame;
         /// <summary>The zoom punch: amount (0.01 = 1% larger, easing back).</summary>
         public System.Action<float> ZoomKick;
-        /// <summary>Plays a drawn sheet on the floor (pack id, cell, scale); false when it has no art or no budget.</summary>
-        public System.Func<string, Vec2, float, bool> Sheet;
+        /// <summary>
+        /// Plays a drawn sheet (pack id, cell, scale, mirrored, on the floor layer, recoloured into an element's ramp or
+        /// None); false when it has no art or no budget.
+        /// </summary>
+        public System.Func<string, Vec2, float, bool, bool, Element, bool> Sheet;
+
+        /// <summary>
+        /// PVFX Foundry layers (CC0) over our own resonance sheets (희승 11-23: "공명 이펙트 … 너무 둔하고, 디테일이 떨어져"):
+        /// our v2 sheets keep the shape, the PVFX ones add the weight - solid shaded ice, toxic cloud, a void that swallows.
+        /// </summary>
+        static string ResSheet(Resonance r) =>
+            r == Resonance.Shatter ? "pvfx_frost_explosion" : r == Resonance.Overload ? "pvfx_static_burst" : r == Resonance.Plague ? "pvfx_toxic_explosion"
+            : r == Resonance.Devour ? "pvfx_void_implosion" : r == Resonance.Collapse ? "pvfx_implosion" : null;
+
+        /// <summary>The heavy-blow tear (PVFX crit-hit) in the element's painted variant; shock is recoloured into its ramp.</summary>
+        static string CritSheet(Element e) =>
+            e == Element.Frost ? "pvfx_crit_hit_frost" : e == Element.Rot ? "pvfx_crit_hit_venom" : e == Element.Void ? "pvfx_crit_hit_void" : "pvfx_crit_hit";
 
         /// <summary>
         /// The floor wave as a drawn sheet (희승 11-23: the flat yellow band under a skill "너무 둔하고, 디테일이 떨어져 보여"):
@@ -459,12 +474,27 @@ namespace Lanternkeeper.View
         /// <summary>World width of the sheet's ring at scale 1 (the PVFX ring spans 120 art pixels, the holy nova ~110).</summary>
         const float RingSheetWidth = 120f / 64f;
 
-        /// <summary>The element's drawn floor ring, <paramref name="width"/> world units across; false where none suits.</summary>
-        bool SheetRing(Vec2 cell, float width, PixelRamp ramp)
+        /// <summary>
+        /// The element's drawn floor ring, <paramref name="width"/> world units across; false where none suits. At most five
+        /// in any 0.7 s: a drawn ring lingers 1.1 s (the flat band 0.4 s), and arrow rain landing in a boss room stacked
+        /// 28 of them into one gold slab (editor check 11-23). Over the cap the caller draws nothing - its sparks and dust
+        /// still mark the blow.
+        /// </summary>
+        bool SheetRing(Vec2 cell, float width, PixelRamp ramp, out bool capped)
         {
+            capped = false;
             var sheet = RingSheet(ramp);
-            return sheet != null && Sheet != null && Sheet(sheet, cell, width / RingSheetWidth);
+            if (sheet == null || Sheet == null) return false;
+            int slot = 0;
+            for (int i = 1; i < _ringAt.Length; i++) if (_ringAt[i] < _ringAt[slot]) slot = i;
+            if (Time.time - _ringAt[slot] < 0.7f) { capped = true; return false; }
+            // No more than twice the art size: at 2.7× its pixels turned to 3×3 blocks and its fading arcs to loose dashes.
+            if (!Sheet(sheet, cell, Mathf.Min(2f, width / RingSheetWidth), false, true, Element.None)) return false;
+            _ringAt[slot] = Time.time;
+            return true;
         }
+
+        readonly float[] _ringAt = { -9f, -9f, -9f, -9f, -9f };
         float _impactReadyAt;
 
         /// <summary>An impact frame at most every 4 s: rarer is what keeps it a punch.</summary>
@@ -482,7 +512,7 @@ namespace Lanternkeeper.View
             Parts = new PixelParticles(root, 30990, 31010);
         }
 
-        public void BeginTick() { _hits = 0; _deaths = 0; _casts = 0; _shots = 0; }
+        public void BeginTick() { _hits = 0; _deaths = 0; _casts = 0; _shots = 0; _resSheets = 0; _tears = 0; _splats = 0; }
 
         // ---------- 림 라이트 (1122_pixel_lighting.md: directional coloured rim from the nearest light) ----------
         struct Glow { public Vector2 At; public Color C; public float R, T, Life; }
@@ -598,9 +628,13 @@ namespace Lanternkeeper.View
                     break;
                 case SimEventType.Resonance:
                     Burst(ev.Pos, RampOf(ev.Elem), 0.9f, 7, 0.22f);
+                    // The PVFX layer under our sheet; overload's blue burst is repainted into the shock ramp (our overload is gold).
+                    var res = ResSheet(ev.Res);
+                    if (res != null && _resSheets++ < 4)
+                        Sheet?.Invoke(res, ev.Pos, 1f, false, false, ev.Res == Resonance.Overload ? Element.Shock : Element.None);
                     break;
                 case SimEventType.ChainPop when ev.Depth >= 2:
-                    if (!SheetRing(ev.Pos, 1.2f, RampOf(ev.Elem)))
+                    if (!SheetRing(ev.Pos, 1.2f, RampOf(ev.Elem), out var popCapped) && !popCapped)
                         Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.2f, 0.6f, 0.32f, RampOf(ev.Elem), VfxPlayer.GroundOrder + 4, 2f, 0.5f);
                     Burst(ev.Pos, RampOf(ev.Elem), 0.6f, 4, 0.16f);
                     break;
@@ -745,6 +779,9 @@ namespace Lanternkeeper.View
                 spikes: ev.Elem == Element.Shock ? 6f : 4f, dir: dir);
             int extra = tier == 2 ? 6 : tier == 1 ? 4 : 2;
             var floor = Floor(ev.Pos);
+            // A heavy blow (a resonance, a finisher, an ultimate) tears through: PVFX's crit streak, mirrored to the blow's way.
+            if (byHero && tier >= 1 && _tears++ < 3)
+                Sheet?.Invoke(CritSheet(ev.Elem), ev.Pos, 1f, dir.x < 0f, false, ev.Elem == Element.Shock ? Element.Shock : Element.None);
             // A melee blow cuts across the body: a thin arc flashed over the struck enemy for a few frames.
             if (byHero && _hits <= 8 && HeroStats.IsMeleeClass(_world.Hero.ClassId))
             {
@@ -783,7 +820,7 @@ namespace Lanternkeeper.View
             }
             if (tier == 2)
             {
-                if (!SheetRing(ev.Pos, 1.6f, ramp))
+                if (!SheetRing(ev.Pos, 1.6f, ramp, out var hitCapped) && !hitCapped)
                     Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.6f, 0.8f, 0.35f, ramp, VfxPlayer.GroundOrder + 4, 2.2f, 0.5f);
                 Debris(ev.Pos, PixelRamp.Ash, 5, 1.2f, dir: dir);
             }
@@ -910,6 +947,9 @@ namespace Lanternkeeper.View
             }
             // 고어: the body bursts into chunks that bounce and lie a moment (thrown on the way the blow went).
             if (GameSettings.Blood) Debris(ev.Pos, PixelRamp.Blood, 6, 1.6f, 0.4f, dir);
+            // …and a drawn splat (PVFX blood-splat sprays right from its root): thrown on past the body, a few a tick.
+            if (GameSettings.Blood && _splats++ < 3)
+                Sheet?.Invoke("pvfx_blood_splat", ev.Pos, 1f, dir.x < 0f, false, Element.None);
         }
 
         // ---------- building blocks ----------
@@ -974,9 +1014,9 @@ namespace Lanternkeeper.View
             float w = 1.414f * radius * 1.05f;
             if (ring)
             {
-                bool drawnRing = SheetRing(cell, w, ramp);
+                bool drawnRing = SheetRing(cell, w, ramp, out var ringCapped);
                 // An ultimate also gets the inner band under the drawn ring (two waves read as the heavier blow).
-                if (!drawnRing)
+                if (!drawnRing && !ringCapped)
                     Shapes.Add(FxShape.Ring, world, w, w * 0.5f, big ? 0.6f : 0.4f, ramp, VfxPlayer.GroundOrder + 4, big ? 1.5f : 1.25f, 0.25f, alpha: big ? 1f : 0.8f);
                 if (big) Shapes.Add(FxShape.Ring, world, w * 0.7f, w * 0.35f, 0.5f, ramp, VfxPlayer.GroundOrder + 4, 1.7f, 0.4f, delay: 0.08f, alpha: drawnRing ? 0.6f : 1f);
             }

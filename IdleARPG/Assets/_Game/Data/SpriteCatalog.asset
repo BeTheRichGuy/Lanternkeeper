@@ -21131,6 +21131,127 @@ MonoBehaviour:
     fps: 16
     mirrorMask: 0
     loop: 1
+  - key: vfx/pvfx_blood_splat/whole
+    sprites:
+    - {fileID: 21300000, guid: fc0edbd3203a39f40b97ea978fe6eae0, type: 3}
+    - {fileID: 21300000, guid: 4bc2f7e94c14e2346a64b8019ce15d22, type: 3}
+    - {fileID: 21300000, guid: c36f6ff367c39354fa4b9b1727e05ce5, type: 3}
+    - {fileID: 21300000, guid: 764075d350eff074dab9b72c456928df, type: 3}
+    - {fileID: 21300000, guid: ab99702192576654083008d5e94521b0, type: 3}
+    - {fileID: 21300000, guid: 97e28521a5c84fe459bb4ebd03b9a19e, type: 3}
+    - {fileID: 21300000, guid: e3f016ccee5ca074ab2cd75885806943, type: 3}
+    - {fileID: 21300000, guid: f0b1dcf5b96c8114e91bcbffdb8167b4, type: 3}
+    - {fileID: 21300000, guid: 3cf77a2977a342e4283dbb99e9f1dc92, type: 3}
+    - {fileID: 21300000, guid: c902246e85965914da7a9b2205e11c08, type: 3}
+    - {fileID: 21300000, guid: b19f48f8d05e15d4c859c5fcb4757b94, type: 3}
+    - {fileID: 21300000, guid: 05cdc15f4bebe374986221fc3ce2c196, type: 3}
+    - {fileID: 21300000, guid: 785ef91cbc4ef3e4aaa83ac44a711667, type: 3}
+    - {fileID: 21300000, guid: b8d0d0675201633428b59328d7d7c7fc, type: 3}
+    - {fileID: 21300000, guid: 3a3fc4ca9fc80a440990dd269c9d20ed, type: 3}
+    - {fileID: 21300000, guid: cdd60f3d4a2a34146887baaff6a3e90b, type: 3}
+    frames: 16
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_crit_hit/whole
+    sprites:
+    - {fileID: 21300000, guid: 150f5640398c21c40a8043f47e1345f5, type: 3}
+    - {fileID: 21300000, guid: 2090d5df85eaf5e4195022efc57d7daf, type: 3}
+    - {fileID: 21300000, guid: 2b1183ab3fa024f4ea889c4d05c88966, type: 3}
+    - {fileID: 21300000, guid: 372f3972b71aa0f4ba294443090195fc, type: 3}
+    - {fileID: 21300000, guid: 9b4d9e592aa6fe9479be1d9d7e8f27f7, type: 3}
+    - {fileID: 21300000, guid: 4ed5b86a47773fc4dbe8fb8268905997, type: 3}
+    - {fileID: 21300000, guid: e8e64efa8dd06754196753d2c57347b0, type: 3}
+    - {fileID: 21300000, guid: f5dbd4bd016eebe498eb9e454f544869, type: 3}
+    - {fileID: 21300000, guid: c265e33279f16ef429c2037205aafbc7, type: 3}
+    - {fileID: 21300000, guid: 15bd337d241a51a478c2e39112df064f, type: 3}
+    - {fileID: 21300000, guid: 055da487c46c6944d85a59f48ed0c133, type: 3}
+    frames: 11
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_crit_hit_frost/whole
+    sprites:
+    - {fileID: 21300000, guid: 83ab335b191398a4fa400de3b15d0e92, type: 3}
+    - {fileID: 21300000, guid: ecef81fceba3cf049a4fabb2c4de200b, type: 3}
+    - {fileID: 21300000, guid: cd8982152f60fbb4289ccf38750dde3d, type: 3}
+    - {fileID: 21300000, guid: ae914927c8ae8634a9e12ff01fa86635, type: 3}
+    - {fileID: 21300000, guid: 766471e88d0e6ab439c16343254eacff, type: 3}
+    - {fileID: 21300000, guid: 6cf2a4f138864624cbbb4417040df8bf, type: 3}
+    - {fileID: 21300000, guid: 9a52b209c73d18245818ac271544a826, type: 3}
+    - {fileID: 21300000, guid: 4bf225f4e9172a14db23c8ad6e8ceee7, type: 3}
+    - {fileID: 21300000, guid: cc5ed079e18054941963ded240397d92, type: 3}
+    - {fileID: 21300000, guid: 0092e1c64d60405429738aaa96426399, type: 3}
+    - {fileID: 21300000, guid: 12352bb1d56a63341bac24bce49a409d, type: 3}
+    frames: 11
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_crit_hit_venom/whole
+    sprites:
+    - {fileID: 21300000, guid: cfe2a343c4f919e459b1769f17f6f195, type: 3}
+    - {fileID: 21300000, guid: d90e77e98d0c5c3428629f8f53e00db8, type: 3}
+    - {fileID: 21300000, guid: 42fa474e5a365324d8a518b9075b08a8, type: 3}
+    - {fileID: 21300000, guid: a4996f9bbfb34a7469865c4a885fb8c6, type: 3}
+    - {fileID: 21300000, guid: 5d1a1a0c93b6f4b488a4baa436ad72aa, type: 3}
+    - {fileID: 21300000, guid: 9d8ae34aadad8d24fb9272a6e6a3ef5e, type: 3}
+    - {fileID: 21300000, guid: 277bd7d583948604ea1cf4deb6976ddd, type: 3}
+    - {fileID: 21300000, guid: 31130c0b265cc9a4f80efe5b503a1111, type: 3}
+    - {fileID: 21300000, guid: 9592bf5e9a00c37459dfdc47758718f1, type: 3}
+    - {fileID: 21300000, guid: 76d4f02ca12056445b2568a209c8bb2f, type: 3}
+    - {fileID: 21300000, guid: 1b7970af62a6d7340ad465d4c25eb4df, type: 3}
+    frames: 11
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_crit_hit_void/whole
+    sprites:
+    - {fileID: 21300000, guid: 6df0f24cce78c7c4abe31e3deff5a3e0, type: 3}
+    - {fileID: 21300000, guid: c447e1454146a6e4391f0f8a23378533, type: 3}
+    - {fileID: 21300000, guid: 18926fdf061b96445b0773b6117ae571, type: 3}
+    - {fileID: 21300000, guid: 4b5758be6389b47469ac012018c842f0, type: 3}
+    - {fileID: 21300000, guid: e63008f899c87cf4db5fa8e3c1a2c3fe, type: 3}
+    - {fileID: 21300000, guid: 28c2f02595b62954ca96961e6a7d824d, type: 3}
+    - {fileID: 21300000, guid: 8ef3c682a604e464f86935b64748fe63, type: 3}
+    - {fileID: 21300000, guid: 4796e3ce8d5b5c04b9b8faaa9c327e34, type: 3}
+    - {fileID: 21300000, guid: f419e120e419cb74693ece6d8b49c28c, type: 3}
+    - {fileID: 21300000, guid: 9fb872000d292f7408378bc1cef6d2e8, type: 3}
+    - {fileID: 21300000, guid: 2ad55fff77caa2d469185088964c3b2c, type: 3}
+    frames: 11
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_frost_explosion/whole
+    sprites:
+    - {fileID: 21300000, guid: ef993f76e83738549b92daaab0a7bcf8, type: 3}
+    - {fileID: 21300000, guid: 52c1b3a8692fd44439819c52398be18d, type: 3}
+    - {fileID: 21300000, guid: a8c2a0e6662bbf5489bb2af3d4af4ef1, type: 3}
+    - {fileID: 21300000, guid: f2681332d07c5e04f886b697f147a063, type: 3}
+    - {fileID: 21300000, guid: fa67949bbb20ac645bc018839a57d5d2, type: 3}
+    - {fileID: 21300000, guid: d2fd63ce94b3c0f40812091e7e39af9f, type: 3}
+    - {fileID: 21300000, guid: 3cf0c8b154dd4c24eaed4991ea200bc0, type: 3}
+    - {fileID: 21300000, guid: 2764d080c6805a34c83e7728c0e0a516, type: 3}
+    - {fileID: 21300000, guid: 1e45c48e52e473046a5bb74c6ac3c468, type: 3}
+    - {fileID: 21300000, guid: 506e543e7d10d1b4ca96fb5fd6544391, type: 3}
+    - {fileID: 21300000, guid: eda9dab69ffb7544dbe1948fa389966e, type: 3}
+    - {fileID: 21300000, guid: 1d8537678b3bfbe4b97f1b945c6b9280, type: 3}
+    - {fileID: 21300000, guid: b8764956907bee347b8e8cd6323a3a59, type: 3}
+    - {fileID: 21300000, guid: 3f3f00f5d203d414b970a80ad14a659f, type: 3}
+    - {fileID: 21300000, guid: b1430d82459c9e342bca7acde3e7066f, type: 3}
+    - {fileID: 21300000, guid: 91fb01833bc0cba43acbc67f3f28b078, type: 3}
+    - {fileID: 21300000, guid: c267992c26db4034e904086b96d407f6, type: 3}
+    - {fileID: 21300000, guid: d85e25090b8c0da479db7f58fefe4b19, type: 3}
+    - {fileID: 21300000, guid: fd0d07d14b634a04ca8565a01238930b, type: 3}
+    - {fileID: 21300000, guid: a3273f5d09b84574598548c073d8b954, type: 3}
+    - {fileID: 21300000, guid: 9dc35cee5c02c0647b4c9b22763576cb, type: 3}
+    - {fileID: 21300000, guid: 8353ed14daec2d0469ef1bd0f7943419, type: 3}
+    - {fileID: 21300000, guid: 32cd1d11ba03b9642ae581834a5e2104, type: 3}
+    - {fileID: 21300000, guid: 6911afce8de0bf946bf3ca5ff7de12ea, type: 3}
+    - {fileID: 21300000, guid: 4a353a6023a15ec47b804912ef5925b5, type: 3}
+    frames: 25
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
   - key: vfx/pvfx_holy_nova/whole
     sprites:
     - {fileID: 21300000, guid: 96b07316e42f5384d8849c80d12ee757, type: 3}
@@ -21159,6 +21280,40 @@ MonoBehaviour:
     - {fileID: 21300000, guid: 5c10780951345674c89d8d17c8e24f83, type: 3}
     - {fileID: 21300000, guid: 826462373e7b4164d85d0960cce8de1f, type: 3}
     frames: 25
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_implosion/whole
+    sprites:
+    - {fileID: 21300000, guid: eb473aa05a84b8c4e80489babd525667, type: 3}
+    - {fileID: 21300000, guid: d8428d7fda29311409463e94d336ed9d, type: 3}
+    - {fileID: 21300000, guid: 6b0c23ea39423a347b69e554e5e92a8c, type: 3}
+    - {fileID: 21300000, guid: 0838b9bf6d4924341b3a5d37fbf17120, type: 3}
+    - {fileID: 21300000, guid: c96573e3b4588194a80d45b83203611c, type: 3}
+    - {fileID: 21300000, guid: e10c4ba9f1e48844daba6d4b8b5222ad, type: 3}
+    - {fileID: 21300000, guid: c35abf66354aa3b438f274137aec59c3, type: 3}
+    - {fileID: 21300000, guid: 8ca33568d104b7e4eb245ae4fd40fb8c, type: 3}
+    - {fileID: 21300000, guid: 04b5b38ad3e540840a66729a76a7fff0, type: 3}
+    - {fileID: 21300000, guid: 5fb9b10d3dfbeb14c94b12a6e39641b3, type: 3}
+    - {fileID: 21300000, guid: 1d1ebd2aeac1f5c4a9a3c2ee2201f8d3, type: 3}
+    - {fileID: 21300000, guid: d1b1948bf7cc5994197181e6fe201c34, type: 3}
+    - {fileID: 21300000, guid: cf324176a590ab24e958ecb17488419b, type: 3}
+    - {fileID: 21300000, guid: e05fa1129bc1c154a86735c7d828db05, type: 3}
+    - {fileID: 21300000, guid: caafc8ef28e2e9743af2e37fa600ebab, type: 3}
+    - {fileID: 21300000, guid: 38f79368ba802064fbfb57a1b7aa5db1, type: 3}
+    - {fileID: 21300000, guid: c544895a81a7bf541ba24daa9d684966, type: 3}
+    - {fileID: 21300000, guid: 27e4b6d31393c4448aaf932ca0b261be, type: 3}
+    - {fileID: 21300000, guid: e0f43899e19cd2e4ba66070768d3cf89, type: 3}
+    - {fileID: 21300000, guid: 3e69fd09c4bd29d4f8f33c565d09a2f5, type: 3}
+    - {fileID: 21300000, guid: eb6741204c29fa14f8f0b2dcac344281, type: 3}
+    - {fileID: 21300000, guid: 0fcda931c829fee4f9b308d2337be704, type: 3}
+    - {fileID: 21300000, guid: f75e79582d292f04c925f949dd9229d8, type: 3}
+    - {fileID: 21300000, guid: b0a04a3731fa5a94a886cd3f9bf715ab, type: 3}
+    - {fileID: 21300000, guid: 2af0ff971bb9d51468fe2cc6d3454180, type: 3}
+    - {fileID: 21300000, guid: d7b42d14bd8586d4cb7816022a27cece, type: 3}
+    - {fileID: 21300000, guid: 2795e38ccb7995141a5d4d0bebbf72bc, type: 3}
+    - {fileID: 21300000, guid: 76c46e0cd6493314a8130490e58305d5, type: 3}
+    frames: 28
     fps: 14.286
     mirrorMask: 0
     loop: 0
@@ -21272,6 +21427,25 @@ MonoBehaviour:
     fps: 14.286
     mirrorMask: 0
     loop: 0
+  - key: vfx/pvfx_static_burst/whole
+    sprites:
+    - {fileID: 21300000, guid: cabb51cc788f9a44eac486af79a487e7, type: 3}
+    - {fileID: 21300000, guid: 9fd6a2dd22f29dd4994d5ae35262b4f5, type: 3}
+    - {fileID: 21300000, guid: e3852f577ae5e6e438249ceb6d6985a0, type: 3}
+    - {fileID: 21300000, guid: f02e9b7cd025e744fafd897da2305c96, type: 3}
+    - {fileID: 21300000, guid: 91f37756fe66f8e4ead37876e4916cbf, type: 3}
+    - {fileID: 21300000, guid: c9e50879f985b8c4cbe4316b2d6b31af, type: 3}
+    - {fileID: 21300000, guid: e1898f52a5fd8c54eb56f6950e404d04, type: 3}
+    - {fileID: 21300000, guid: f197b875f2479a8458f3b9fa3ce86e30, type: 3}
+    - {fileID: 21300000, guid: ae80609855321b44b9165701f5ff3305, type: 3}
+    - {fileID: 21300000, guid: 7ca2646c5e491614395b9437116a3568, type: 3}
+    - {fileID: 21300000, guid: 100eb681b32e63e41827d0d120224db0, type: 3}
+    - {fileID: 21300000, guid: e9aea3cb4561ac448b32d6661770d9cd, type: 3}
+    - {fileID: 21300000, guid: 19a822223c0e8bd43bb0a6d88cd7d8cf, type: 3}
+    frames: 13
+    fps: 16.667
+    mirrorMask: 0
+    loop: 0
   - key: vfx/pvfx_thunderclap/whole
     sprites:
     - {fileID: 21300000, guid: 29227e90da05b994d9ed14f32fdeb942, type: 3}
@@ -21287,6 +21461,66 @@ MonoBehaviour:
     - {fileID: 21300000, guid: 81d93438cd9d38a4e894ba00bf830c8f, type: 3}
     frames: 11
     fps: 16.667
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_toxic_explosion/whole
+    sprites:
+    - {fileID: 21300000, guid: 936097bdbfcb40944bec7b3ea2ab5366, type: 3}
+    - {fileID: 21300000, guid: 149c0169a665fdf488ab85f5645e3265, type: 3}
+    - {fileID: 21300000, guid: d196fe01124a883478b1abfa98debc93, type: 3}
+    - {fileID: 21300000, guid: 8416ae0cafbc9b74d8151bf5722a7962, type: 3}
+    - {fileID: 21300000, guid: 19bdb8a74dc5fa344bf5bb02b602cac0, type: 3}
+    - {fileID: 21300000, guid: fb97e28d2fa240c42be9df08fb9ced58, type: 3}
+    - {fileID: 21300000, guid: a2348a05bc13dc84380ca49ebecf431f, type: 3}
+    - {fileID: 21300000, guid: 1f186c9f59020b549b9bc2bc139aec8a, type: 3}
+    - {fileID: 21300000, guid: efb734cda4e58e643a4f764d8f3e2875, type: 3}
+    - {fileID: 21300000, guid: a01d8949446554342981e390770f3e88, type: 3}
+    - {fileID: 21300000, guid: e1e3b39f73c629848a86e69bd9a58e82, type: 3}
+    - {fileID: 21300000, guid: 8e7cfced6af742648a533375b39eefec, type: 3}
+    - {fileID: 21300000, guid: 1c6332ecef26386418f0c3d258b6a2b7, type: 3}
+    - {fileID: 21300000, guid: 322ff57abb1219f41bb54e6b7b88fc99, type: 3}
+    - {fileID: 21300000, guid: 11a741aa400107e49bad4d214e22f9eb, type: 3}
+    - {fileID: 21300000, guid: 0bd4f633dd208dd47a7cb2b69ae34df9, type: 3}
+    - {fileID: 21300000, guid: 3e4127ce3349dee41bd47a16ea3e19b2, type: 3}
+    - {fileID: 21300000, guid: 5fb9a3b485b201e4cabeca02c9dd85fe, type: 3}
+    - {fileID: 21300000, guid: bc7ecbaaed2d2474b849579fc4b7700b, type: 3}
+    - {fileID: 21300000, guid: 6d6b384622411b74295b0db551f6aae5, type: 3}
+    - {fileID: 21300000, guid: 0b3ca27498515814387cecf777ff2b79, type: 3}
+    - {fileID: 21300000, guid: 77af1d83dc4b5a84bb26a93ad6fa27d9, type: 3}
+    - {fileID: 21300000, guid: 5d382d85ed0717645b19346fbcbaec8b, type: 3}
+    - {fileID: 21300000, guid: 06b8d2c0445978c4ea90a64b9ea34e0c, type: 3}
+    - {fileID: 21300000, guid: 6ce0cccb089abdc4dbd0c0b8a20e97eb, type: 3}
+    - {fileID: 21300000, guid: b78a66bc140ce694fbb22b1cb1e00468, type: 3}
+    - {fileID: 21300000, guid: e2c682aa47803bb44b0f4de0fcaf28c1, type: 3}
+    frames: 27
+    fps: 14.286
+    mirrorMask: 0
+    loop: 0
+  - key: vfx/pvfx_void_implosion/whole
+    sprites:
+    - {fileID: 21300000, guid: 60e80ecee08e22b44b72279415452ce8, type: 3}
+    - {fileID: 21300000, guid: 81c5f62b118c86545b7a7e1067749e2d, type: 3}
+    - {fileID: 21300000, guid: 52e2f8c7c7b207243a92234d02fb2e17, type: 3}
+    - {fileID: 21300000, guid: 763d659076b46b94e9e3619c1a4be0d2, type: 3}
+    - {fileID: 21300000, guid: 5b09d73042c12a040a8d125ca45e995d, type: 3}
+    - {fileID: 21300000, guid: 5102defe9b693884eaa9c8df133cb91e, type: 3}
+    - {fileID: 21300000, guid: 690e4bedfb76f994590aa47e913f85c8, type: 3}
+    - {fileID: 21300000, guid: 830cdd6c3f986b14bb00c946013cc802, type: 3}
+    - {fileID: 21300000, guid: 3d686c9b479caf843b3b71297ad11f7a, type: 3}
+    - {fileID: 21300000, guid: 3678c77854c5602478b42ec9984615a0, type: 3}
+    - {fileID: 21300000, guid: 257218d96e57a5f41b13205e140cb499, type: 3}
+    - {fileID: 21300000, guid: 395607fef03a25b46b3e1906af893602, type: 3}
+    - {fileID: 21300000, guid: d76a0d617fd14c2469d94fbd569bd2e2, type: 3}
+    - {fileID: 21300000, guid: 8255f13e04811454f965652cba91debb, type: 3}
+    - {fileID: 21300000, guid: a6df35578b2fed9429ac603388d226d5, type: 3}
+    - {fileID: 21300000, guid: c62ade213b6f185438958fe18ed196da, type: 3}
+    - {fileID: 21300000, guid: 9e72755557faa1c4f89f9c93a0da9bae, type: 3}
+    - {fileID: 21300000, guid: ec78e6a006296ad4087126240be51b62, type: 3}
+    - {fileID: 21300000, guid: 0a244a090405e5049995830812331e44, type: 3}
+    - {fileID: 21300000, guid: 5d4a22326a1e32d498afbc974203420a, type: 3}
+    - {fileID: 21300000, guid: 976bfea633b35e44fbbaba2f90422b2e, type: 3}
+    frames: 21
+    fps: 14.286
     mirrorMask: 0
     loop: 0
   - key: vfx/rallying_cry/behind

@@ -293,8 +293,8 @@ namespace Lanternkeeper.View
         int AutoZoom() => Mathf.Clamp(Screen.height / 540, 1, 4);
 
         /// <summary>
-        /// 희승 11-22 성장 줌: a new hero is seen up close (×1.5 the final view); as it levels and its skills and stride
-        /// grow the view eases out to the final one (the old whole-step rule, 1080p ×2). A rebirth starts close again.
+        /// 희승 11-22 성장 줌: a new hero starts at the whole-step view (1080p ×2); as it levels and its skills and stride
+        /// grow the view eases out a little further (×0.85 of it). A rebirth starts close again.
         /// </summary>
         float GrowthZoom()
         {
@@ -303,10 +303,14 @@ namespace Lanternkeeper.View
             float area = Mathf.Clamp01(h.Derived.AreaPct / 0.6f);
             float move = Mathf.Clamp01((h.Stats.MoveSpeed / HeroStats.BaseMoveSpeed - 1f) / 0.5f);
             float grown = Mathf.Clamp01(0.6f * lv + 0.2f * area + 0.2f * move);
-            return AutoZoom() * Mathf.Lerp(StartZoomMul, 1f, grown);
+            return AutoZoom() * Mathf.Lerp(StartZoomMul, EndZoomMul, grown);
         }
 
-        public const float StartZoomMul = 1.25f; // 희승 11-22: 1.5 was "너무 가까이서 시작한다"
+        // 희승 11-22: 1.5 was "너무 가까이서 시작한다"; 11-23: 1.25 still was - the screenshot sent ("처음 시작할때 화면 사이즈
+        // 이정도에서") is the Lv5 view two wheel notches out, ≈ the whole-step view (1080p ×2). A new hero starts there and
+        // the growth pulls back a little past it as the fights fill the screen (×1.7 at 1080p for a grown hero).
+        public const float StartZoomMul = 1f;
+        public const float EndZoomMul = 0.85f;
 
         /// <summary>Art pixels per screen pixel stays a whole number: the PPC picks the largest zoom that fits the
         /// reference resolution, so asking for exactly screen/zoom gives exactly that zoom.</summary>
