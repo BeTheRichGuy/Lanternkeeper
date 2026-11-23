@@ -52,7 +52,7 @@
 
 ## 개발 방식
 - **AI 협업**: 코딩, 리서치, 리뷰를 AI 코딩 에이전트(Claude Code)와 페어로 진행했습니다. 기획 결정, 방향 설정, 결과 검증은 제가 했습니다. 큰 변경은 1080p 빌드 녹화와 블라인드 비평으로 확인했습니다.
-- **아트**: 캐릭터, 타일, UI, VFX 도트는 PixelLab으로 생성한 뒤 직접 다듬었습니다. 폰트는 [Galmuri](https://github.com/quiple/galmuri)(SIL OFL)를 씁니다.
+- **아트**: 캐릭터, 타일, UI, VFX 도트는 PixelLab으로 생성한 뒤 직접 다듬었습니다. 폰트는 [Galmuri](https://github.com/quiple/galmuri)(SIL OFL)를 씁니다. 바닥 충격파 시트는 [PVFX Foundry](https://nerijs.itch.io/pvfx-foundry)(nerijs, CC0)를 `tools/pvfx/pvfx_to_pack.py`로 변환해 원소별로 씁니다.
 - **테스트 우선**: 시뮬레이션 기능은 EditMode 테스트와 함께 추가했습니다(318개).
 
 ## 폴더 구조

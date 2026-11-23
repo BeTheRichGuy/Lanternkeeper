@@ -444,6 +444,27 @@ namespace Lanternkeeper.View
         public System.Action<Color, float> ImpactFrame;
         /// <summary>The zoom punch: amount (0.01 = 1% larger, easing back).</summary>
         public System.Action<float> ZoomKick;
+        /// <summary>Plays a drawn sheet on the floor (pack id, cell, scale); false when it has no art or no budget.</summary>
+        public System.Func<string, Vec2, float, bool> Sheet;
+
+        /// <summary>
+        /// The floor wave as a drawn sheet (희승 11-23: the flat yellow band under a skill "너무 둔하고, 디테일이 떨어져 보여"):
+        /// PVFX Foundry's shockwave ring (CC0) in the element's own palette - a ring that throws up chips of floor and
+        /// leaves a crack, instead of a shaded band. Null where no sheet suits (steel, ash): the band stays.
+        /// </summary>
+        static string RingSheet(PixelRamp r) =>
+            r == PixelRamp.Ember ? "pvfx_ring_ember" : r == PixelRamp.Shock ? "pvfx_ring_solar" : r == PixelRamp.Rot ? "pvfx_ring_venom"
+            : r == PixelRamp.Void ? "pvfx_ring_void" : r == PixelRamp.Frost ? "pvfx_ring_frost" : r == PixelRamp.Holy ? "pvfx_holy_nova" : null;
+
+        /// <summary>World width of the sheet's ring at scale 1 (the PVFX ring spans 120 art pixels, the holy nova ~110).</summary>
+        const float RingSheetWidth = 120f / 64f;
+
+        /// <summary>The element's drawn floor ring, <paramref name="width"/> world units across; false where none suits.</summary>
+        bool SheetRing(Vec2 cell, float width, PixelRamp ramp)
+        {
+            var sheet = RingSheet(ramp);
+            return sheet != null && Sheet != null && Sheet(sheet, cell, width / RingSheetWidth);
+        }
         float _impactReadyAt;
 
         /// <summary>An impact frame at most every 4 s: rarer is what keeps it a punch.</summary>
@@ -579,7 +600,8 @@ namespace Lanternkeeper.View
                     Burst(ev.Pos, RampOf(ev.Elem), 0.9f, 7, 0.22f);
                     break;
                 case SimEventType.ChainPop when ev.Depth >= 2:
-                    Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.2f, 0.6f, 0.32f, RampOf(ev.Elem), VfxPlayer.GroundOrder + 4, 2f, 0.5f);
+                    if (!SheetRing(ev.Pos, 1.2f, RampOf(ev.Elem)))
+                        Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.2f, 0.6f, 0.32f, RampOf(ev.Elem), VfxPlayer.GroundOrder + 4, 2f, 0.5f);
                     Burst(ev.Pos, RampOf(ev.Elem), 0.6f, 4, 0.16f);
                     break;
                 case SimEventType.GrandResonance:
@@ -761,7 +783,8 @@ namespace Lanternkeeper.View
             }
             if (tier == 2)
             {
-                Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.6f, 0.8f, 0.35f, ramp, VfxPlayer.GroundOrder + 4, 2.2f, 0.5f);
+                if (!SheetRing(ev.Pos, 1.6f, ramp))
+                    Shapes.Add(FxShape.Ring, IsoProjection.ToWorld(ev.Pos), 1.6f, 0.8f, 0.35f, ramp, VfxPlayer.GroundOrder + 4, 2.2f, 0.5f);
                 Debris(ev.Pos, PixelRamp.Ash, 5, 1.2f, dir: dir);
             }
             // 고어: a solid blow knocks a few dark-red chunks off, out the far side of the enemy.
@@ -951,8 +974,11 @@ namespace Lanternkeeper.View
             float w = 1.414f * radius * 1.05f;
             if (ring)
             {
-                Shapes.Add(FxShape.Ring, world, w, w * 0.5f, big ? 0.6f : 0.4f, ramp, VfxPlayer.GroundOrder + 4, big ? 1.5f : 1.25f, 0.25f, alpha: big ? 1f : 0.8f);
-                if (big) Shapes.Add(FxShape.Ring, world, w * 0.7f, w * 0.35f, 0.5f, ramp, VfxPlayer.GroundOrder + 4, 1.7f, 0.4f, delay: 0.08f);
+                bool drawnRing = SheetRing(cell, w, ramp);
+                // An ultimate also gets the inner band under the drawn ring (two waves read as the heavier blow).
+                if (!drawnRing)
+                    Shapes.Add(FxShape.Ring, world, w, w * 0.5f, big ? 0.6f : 0.4f, ramp, VfxPlayer.GroundOrder + 4, big ? 1.5f : 1.25f, 0.25f, alpha: big ? 1f : 0.8f);
+                if (big) Shapes.Add(FxShape.Ring, world, w * 0.7f, w * 0.35f, 0.5f, ramp, VfxPlayer.GroundOrder + 4, 1.7f, 0.4f, delay: 0.08f, alpha: drawnRing ? 0.6f : 1f);
             }
             Ripple?.Invoke(world, radius, big ? 0.6f : 0.42f, big ? 1f : 0.6f);
             if (!debrisOnly) AddGlow(world, ramp.C[3], Mathf.Max(1.6f, w * 0.65f), big ? 0.5f : 0.38f);
