@@ -16,7 +16,7 @@ namespace Lanternkeeper.View
     /// </summary>
     public sealed class LootReveal
     {
-        const float W = 440f, H = 156f, Hold = 4.2f, In = 0.18f, Out = 0.45f;
+        const float W = 440f, H = 168f, Hold = 4.2f, In = 0.18f, Out = 0.45f;
         /// <summary>When the card follows the drop: the shaft's arc and lie (DropView: 0.35 s + 2.6 s for a jackpot).</summary>
         const float Delay = 2.6f;
         readonly UiKit _ui;
@@ -48,11 +48,11 @@ namespace Lanternkeeper.View
             _glow.sprite = UiKit.Glow(ui, 64);
             var well = UiKit.Fill(_card, "well", 18f, 26f, 80f, 80f, new Color(0f, 0f, 0f, 0.55f));
             _icon = ui.Sprite(_card, "ui/dot", 26f, 34f, 64f, 64f); // 32 px art at ×2
-            _kind = UiKit.Label(_card, "", 112f, 12f, W - 124f, 14f, 12, TextAnchor.UpperLeft, UiKit.Gold);
+            _kind = UiKit.Label(_card, "", 112f, 10f, W - 124f, 16f, 14, TextAnchor.UpperLeft, UiKit.Gold, title: true);
             _name = UiKit.Label(_card, "", 112f, 30f, W - 124f, 24f, 20, TextAnchor.UpperLeft, Color.white, title: true);
             _base = UiKit.Label(_card, "", 112f, 58f, W - 124f, 30f, 12, TextAnchor.UpperLeft, UiKit.Dim);
             _power = UiKit.Label(_card, "", 112f, 76f, W - 124f, 32f, 12, TextAnchor.UpperLeft, new Color(0.85f, 0.66f, 0.36f));
-            _verdict = UiKit.Label(_card, "", 112f, H - 48f, W - 124f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+            _verdict = UiKit.Label(_card, "", 112f, H - 56f, W - 124f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink); // its own line, clear of the power (critique 8 P0)
             _verdict.horizontalOverflow = HorizontalWrapMode.Overflow;
             // Critique 6: "정보는 맞지만 알림창처럼 보여 흥분이 없다" — a light sweeps across the card as it lands, the name
             // and the item pop, and the card offers the two things a player wants next: wear it, or look at it.
@@ -68,6 +68,12 @@ namespace Lanternkeeper.View
             p.Enter = () => _hover = true; // the card stays while the pointer reads it
             p.Exit = () => _hover = false;
             _card.gameObject.SetActive(false);
+            var flash = UiKit.Rect(ui.Root, "Loot Flash", 0f, 0f, 0f, 0f);
+            flash.anchorMin = Vector2.zero; flash.anchorMax = Vector2.one;
+            flash.offsetMin = flash.offsetMax = Vector2.zero;
+            _flash = flash.gameObject.AddComponent<Image>();
+            _flash.raycastTarget = false;
+            _flash.enabled = false;
         }
 
         readonly Image _shine;
@@ -85,6 +91,15 @@ namespace Lanternkeeper.View
 
         /// <summary>Raised after the card's 장착 so the game saves soon.</summary>
         public Action OnEquipped;
+        /// <summary>Raised as a card lands (its sting: GameBootstrap plays the sound).</summary>
+        public Action<Item> OnShown;
+
+        /// <summary>
+        /// A full-screen wash of the rarity's colour, gone in 0.4 s (critique 7 #1: the find needed a flash, not only a card).
+        /// Under the card, over the world and the HUD; it never takes a click.
+        /// </summary>
+        Image _flash;
+        float _flashT = -1f;
 
         /// <summary>Takes this tick's drops; a legendary or unique gets a card once its shaft has stood a moment.</summary>
         public void OnTick(List<SimEvent> events)
@@ -97,6 +112,13 @@ namespace Lanternkeeper.View
         public void Render(SimWorld world, bool hidden)
         {
             float dt = Time.unscaledDeltaTime;
+            if (_flashT >= 0f)
+            {
+                _flashT += dt;
+                float f = 1f - _flashT / 0.4f;
+                if (f <= 0f || hidden) { _flashT = -1f; _flash.enabled = false; }
+                else if (_shown != null) { var fc = ItemStyle.Color(_shown.Rarity); _flash.color = new Color(fc.r, fc.g, fc.b, 0.2f * f * f); }
+            }
             if (_shown == null)
             {
                 // A card waits while a window is open (it would cover the window's head) and shows when the view is clear.
@@ -113,7 +135,11 @@ namespace Lanternkeeper.View
             _icon.rectTransform.localScale = new Vector3(pop, pop, 1f);
             float namePop = _t < 0.25f ? Mathf.Lerp(1.2f, 1f, _t / 0.25f) : 1f;
             _name.rectTransform.localScale = new Vector3(namePop, namePop, 1f);
-            if (a <= 0f && _t > In) { _shown = null; _card.gameObject.SetActive(false); return; }
+            if (a <= 0f && _t > In) { _shown = null; _card.gameObject.SetActive(false); DamageNumbers.Blocked = Rect.zero; return; }
+            // Keep the numbers off the card: its screen area, from the top-centre anchor (W × card height in UI pixels).
+            var size = _ui.Size;
+            float hw = (W / 2f + 12f) / size.x, top = (96f - 8f) / size.y, bottom = (96f + _card.sizeDelta.y + 8f) / size.y;
+            DamageNumbers.Blocked = hidden ? Rect.zero : new Rect(0.5f - hw, 1f - bottom, hw * 2f, bottom - top);
             _group.alpha = hidden ? 0f : Mathf.Clamp01(a);
             _group.blocksRaycasts = !hidden;
             // It rises a few pixels as it comes in, and the light behind the item breathes.
@@ -130,7 +156,11 @@ namespace Lanternkeeper.View
             _t = 0f;
             _hover = false;
             _card.gameObject.SetActive(true);
+            _flash.transform.SetAsLastSibling();
             _card.SetAsLastSibling(); // over the HUD; a window opened later rises over it
+            _flashT = 0f;
+            _flash.enabled = true;
+            OnShown?.Invoke(it);
             var c = ItemStyle.Color(it.Rarity);
             _edgeTop.color = _edgeBottom.color = new Color(c.r, c.g, c.b, 0.9f);
             _icon.sprite = _ui.Catalog.Get(ItemStyle.Icon(it));
@@ -150,7 +180,7 @@ namespace Lanternkeeper.View
             if (lore) _base.text += "\n<color=#9a8a6a>“" + u.Flavor + "”</color>";
             float extra = lore ? 17f : 0f; // the lore line pushes the power and the verdict down, the card grows
             _power.rectTransform.anchoredPosition = new Vector2(112f, -(76f + extra));
-            _verdict.rectTransform.anchoredPosition = new Vector2(112f, -(H - 48f + extra));
+            _verdict.rectTransform.anchoredPosition = new Vector2(112f, -(H - 56f + extra));
             _card.sizeDelta = new Vector2(W, H + extra);
             _frame.rectTransform.sizeDelta = new Vector2(W + 6f, H + 6f + extra);
             _edgeBottom.rectTransform.anchoredPosition = new Vector2(0f, -(H - 2f + extra));
@@ -174,7 +204,8 @@ namespace Lanternkeeper.View
             switch (cmp.Arrow)
             {
                 case GearArrow.BigUp: case GearArrow.Up: return "<color=#5BD66B>▲ 전투력 +" + pct.ToString("0") + "%</color>  <color=#8a8178>공격 " + Signed(cmp.Offence) + " · 생존 " + Signed(cmp.Survival) + "</color>";
-                case GearArrow.Trade: return "<color=#FFD24D>⇄ 교환</color>  <color=#8a8178>공격 " + Signed(cmp.Offence) + " · 생존 " + Signed(cmp.Survival) + "</color>";
+                // A find is never shown as a loss on its card (critique 8: "−23%" made the best find read as junk).
+                case GearArrow.Trade: return "<color=#FFD24D>⇄ 지금 장비와 다른 방향</color>  <color=#8a8178>가방에서 비교해 보세요</color>";
                 case GearArrow.Locked: return "<color=#8a8178>" + (HeroStats.FitsClass(it, h.ClassId) ? "요구 레벨 " + it.ReqLevel : "다른 직업 전용") + " · 가방에 보관했습니다</color>";
                 default: return "<color=#8a8178>지금 장비가 더 낫습니다 · 가방에 보관했습니다</color>";
             }

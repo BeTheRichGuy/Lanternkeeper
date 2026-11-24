@@ -9,8 +9,8 @@ namespace Lanternkeeper.View
 {
     /// <summary>
     /// The skill tree (희승 11-24: "한 탭에서는 하나의 기능만"). Four tabs under the title: one per branch, each only
-    /// that branch's skill rows (skill, its two 변형, its evolution, the name beside the skill), and 「특성」 with the
-    /// ultimate choice, the keystones and the 갈래 강화. Owned nodes are bright with a gold halo, takeable ones carry a
+    /// that branch's skill rows (skill, its two 변형, its evolution, the name beside the skill), and 「특성」 with three
+    /// headed sections: the ultimate choice, the keystones, the 갈래 강화. Owned nodes wear a gold ring and check, takeable ones carry a
     /// "+" and breathe, locked ones stand at 60 % with a lock. The card on the right shows the node pointed at, else the
     /// one last clicked, else the tab's first takeable (or owned) node; the legend waits behind "?". Top bar: points,
     /// 자동 분배, reset. T toggles it.
@@ -29,6 +29,9 @@ namespace Lanternkeeper.View
         // Labels Refresh rewrites: a row's name follows its evolution, its second line says what the skill needs.
         readonly List<(Text name, Text status, TreeNode node)> _rowNames = new List<(Text, Text, TreeNode)>();
         readonly Text[] _branchPoints = new Text[3], _passiveCount = new Text[3];
+        // 특성 tab: each keystone's name and state line, and the gold edge of the chosen ultimate's card.
+        readonly List<(Text name, Text status, TreeNode node)> _keyLabels = new List<(Text, Text, TreeNode)>();
+        readonly List<(GameObject edge, TreeNode node)> _ultEdges = new List<(GameObject, TreeNode)>();
         Text _resetLabel;
         float _resetAskedAt = -10f;
         public bool Visible { get; private set; }
@@ -36,9 +39,9 @@ namespace Lanternkeeper.View
         sealed class NodeView
         {
             public TreeNode Node;
-            public Image Frame, Icon, Glow;
+            public Image Frame, Icon, Glow, Ring;
             public Text Mark, Plus;
-            public GameObject Holder, Lock;
+            public GameObject Holder, Lock, Check;
             public float Size;
         }
 
@@ -139,9 +142,16 @@ namespace Lanternkeeper.View
 
         Vector2 Pos(TreeNode n) => _pos.TryGetValue(n.Id, out var p) ? p : new Vector2(-1000f, -1000f);
 
-        // Branch tabs: rows of skill · name · two 변형 · evolution. 특성 tab: ultimates on top, a row per branch below.
+        // Branch tabs: rows of skill · name · two 변형 · evolution.
         const float RowsTop = 84f, SkillX = 60f, NameX = 96f, Mod0X = 334f, Mod1X = 400f, EvoX = 484f;
-        const float UltY = 118f, TraitTop = 236f, TraitH = 78f, KeyX = 172f, KeyStep = 72f, PassiveX = 372f, PassiveStep = 44f;
+        // 특성 tab (critique 7: three systems crowded into one row per branch): three headed sections, top to bottom —
+        // 궁극기 (two cards side by side), 핵심 특성 (a row per branch, I · II · III in fixed columns), 갈래 강화 (a column
+        // per branch: its pips and n / m). Rows run x 20–580; every row keeps 8 px inside its plate.
+        const float RowX = 20f, RowW = 560f;
+        const float UltHeadY = 64f, UltTop = 84f, UltH = 60f, UltW = 274f, UltGap = 12f;
+        const float KeyHeadY = 152f, KeyTop = 172f, KeyRowH = 64f, KeyRowStep = 66f, KeyCellX = 132f, KeyCellStep = 148f;
+        const float PassHeadY = 376f, PassTop = 394f, PassH = 70f, PassColW = 182f, PassColStep = 189f;
+        readonly Dictionary<string, Vector2> _dims = new Dictionary<string, Vector2>(); // 갈래 강화 pips: (drawn size, hit)
         static readonly Color Plate = new Color(1f, 0.85f, 0.6f, 0.012f); // a row's faint plate (0.035 read as an olive box)
 
         static bool InTab(TreeNode n, int tab) => tab == TraitTab
@@ -158,11 +168,21 @@ namespace Lanternkeeper.View
         void Layout(TreeDef t)
         {
             _pos.Clear();
+            _dims.Clear();
             for (int b = 0; b < 3; b++)
             {
-                int rows = 0;
-                foreach (var n in t.Nodes) if (n.Branch == b && n.Kind == TreeNodeKind.Skill) rows++;
+                int rows = 0, passives = 0;
+                foreach (var n in t.Nodes)
+                {
+                    if (n.Branch != b) continue;
+                    if (n.Kind == TreeNodeKind.Skill) rows++;
+                    else if (n.Kind == TreeNodeKind.Passive) passives++;
+                }
                 float rowH = Mathf.Min(76f, (BodyBottom - 6f - RowsTop) / Mathf.Max(1, rows));
+                // Pips share their column, left-aligned: 28 px while five fit, smaller for six, so the owned ring
+                // (+2 a side) never meets the next pip.
+                float pipStep = Mathf.Min(36f, (PassColW - 12f) / Mathf.Max(1, passives));
+                float pipSize = Mathf.Min(28f, Mathf.Floor(pipStep - 6f));
                 int row = 0, passive = 0;
                 foreach (var n in t.Nodes)
                 {
@@ -181,16 +201,18 @@ namespace Lanternkeeper.View
                             row++;
                             break;
                         case TreeNodeKind.Passive:
-                            _pos[n.Id] = new Vector2(PassiveX + passive++ * PassiveStep, TraitTop + b * TraitH);
+                            _pos[n.Id] = new Vector2(RowX + b * PassColStep + 6f + pipStep * (passive++ + 0.5f), PassTop + 46f);
+                            _dims[n.Id] = new Vector2(pipSize, pipStep);
                             break;
                         case TreeNodeKind.Key:
-                            _pos[n.Id] = new Vector2(KeyX + n.KeyIndex * KeyStep, TraitTop + b * TraitH);
+                            _pos[n.Id] = new Vector2(KeyCellX + n.KeyIndex * KeyCellStep + 26f, KeyTop + b * KeyRowStep + KeyRowH / 2f);
                             break;
                     }
                 }
             }
             int u = 0;
-            foreach (var n in t.Nodes) if (n.Kind == TreeNodeKind.Ultimate) _pos[n.Id] = new Vector2(SkillX + u++ * 260f, UltY);
+            foreach (var n in t.Nodes)
+                if (n.Kind == TreeNodeKind.Ultimate) _pos[n.Id] = new Vector2(RowX + u++ * (UltW + UltGap) + 32f, UltTop + UltH / 2f);
         }
 
         void ShowTab(int t)
@@ -211,6 +233,8 @@ namespace Lanternkeeper.View
         {
             foreach (var r in _tabRoots) if (r != null) UnityEngine.Object.Destroy(r.gameObject);
             _rowNames.Clear();
+            _keyLabels.Clear();
+            _ultEdges.Clear();
             _nodes.Clear();
             _viewOf.Clear();
             _edges.Clear();
@@ -266,41 +290,54 @@ namespace Lanternkeeper.View
                 UiKit.Label(_tabRoots[n.Branch], ModShort(n.Mod), p.x - 32f, p.y + 23f, 64f, 12f, 10, TextAnchor.UpperCenter, UiKit.Dim);
             }
 
-            // ---------- 특성 tab ----------
+            // ---------- 특성 tab: 궁극기 · 핵심 특성 · 갈래 강화, each under its own head ----------
             var trait = _tabRoots[TraitTab];
-            UiKit.Label(trait, "궁극기  <color=#8a8178>통합 레벨 " + SkillBook.UltimateLevel + "부터 · 둘 중 하나만 고릅니다</color>", 24f, 66f, TreeW - 48f, 16f, 13, TextAnchor.UpperLeft, UiKit.Gold)
-                .horizontalOverflow = HorizontalWrapMode.Overflow;
-            UiKit.Fill(trait, "row", 20f, UltY - 32f, TreeW - 36f, 64f, Plate);
+            Head(trait, UltHeadY, "궁극기", "통합 레벨 " + SkillBook.UltimateLevel + "부터 · 둘 중 하나만 고릅니다");
             foreach (var n in t.Nodes)
             {
                 if (n.Kind != TreeNodeKind.Ultimate) continue;
-                var p = Pos(n);
-                var nm = UiKit.Label(trait, "", p.x + 36f, p.y - 17f, 200f, 16f, 13, TextAnchor.UpperLeft, UiKit.Ink);
+                float x = Pos(n).x - 32f;
+                UiKit.Fill(trait, "card", x, UltTop, UltW, UltH, Plate);
+                // The chosen one wears a gold edge (critique 7: "배움" alone did not read as the pick).
+                var edge = UiKit.Rect(trait, "chosen", x, UltTop, UltW, UltH);
+                foreach (var r in new[] { new Rect(0f, 0f, UltW, 2f), new Rect(0f, UltH - 2f, UltW, 2f), new Rect(0f, 0f, 2f, UltH), new Rect(UltW - 2f, 0f, 2f, UltH) })
+                    UiKit.Fill(edge, "edge", r.x, r.y, r.width, r.height, new Color(1f, 0.81f, 0.35f, 0.85f));
+                _ultEdges.Add((edge.gameObject, n));
+                var nm = UiKit.Label(trait, "", x + 64f, UltTop + 9f, 110f, 16f, 13, TextAnchor.UpperLeft, UiKit.Ink);
                 nm.horizontalOverflow = HorizontalWrapMode.Overflow;
-                var st = UiKit.Label(trait, "", p.x + 36f, p.y + 3f, 200f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                var st = UiKit.Label(trait, "", x + UltW - 100f, UltTop + 10f, 90f, 14f, 11, TextAnchor.UpperRight, UiKit.Dim);
                 st.horizontalOverflow = HorizontalWrapMode.Overflow;
                 _rowNames.Add((nm, st, n));
+                UiKit.Label(trait, UltimateLine(n.SkillId), x + 64f, UltTop + 32f, UltW - 74f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
             }
-            UiKit.Fill(trait, "rule", 16f, 166f, TreeW - 32f, 1f, UiKit.Line);
-            UiKit.Label(trait, "갈래", 24f, 180f, 100f, 14f, 12, TextAnchor.UpperLeft, UiKit.Dim);
-            UiKit.Label(trait, "핵심 특성  <color=#8a8178>갈래에 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2] + "포인트</color>",
-                KeyX - 36f, 180f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink).horizontalOverflow = HorizontalWrapMode.Overflow;
-            UiKit.Label(trait, "갈래 강화", PassiveX - 20f, 180f, 200f, 14f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+
+            Head(trait, KeyHeadY, "핵심 특성", "갈래 포인트 " + SkillTree.KeyThreshold[0] + " · " + SkillTree.KeyThreshold[1] + " · " + SkillTree.KeyThreshold[2]
+                + "에서 I · II · III이 열립니다 · 하나에 " + SkillTree.KeyCost + "포인트");
+            Head(trait, PassHeadY, "갈래 강화", "한 칸에 1포인트 · 그 갈래 능력치 +" + SkillTree.PassiveWeight + "단계");
             for (int b = 0; b < 3; b++)
             {
-                float y = TraitTop + b * TraitH;
-                UiKit.Fill(trait, "row", 20f, y - 34f, TreeW - 36f, 70f, Plate);
-                var c = _branchColor[b];
-                UiKit.Label(trait, Talents.BranchName(_classId, b), 30f, y - 17f, 100f, 16f, 13, TextAnchor.UpperLeft, Color.Lerp(c, Color.white, 0.35f));
-                _branchPoints[b] = UiKit.Label(trait, "", 30f, y + 3f, 100f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
-                _passiveCount[b] = UiKit.Label(trait, "", PassiveX - 20f, y + 22f, 200f, 12f, 10, TextAnchor.UpperLeft, UiKit.Dim);
+                var bc = Color.Lerp(_branchColor[b], Color.white, 0.35f);
+                float y = KeyTop + b * KeyRowStep;
+                UiKit.Fill(trait, "row", RowX, y, RowW, KeyRowH, Plate);
+                UiKit.Label(trait, Talents.BranchName(_classId, b), 32f, y + 14f, 96f, 16f, 13, TextAnchor.UpperLeft, bc);
+                _branchPoints[b] = UiKit.Label(trait, "", 32f, y + 34f, 96f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                _branchPoints[b].horizontalOverflow = HorizontalWrapMode.Overflow;
+
+                float px = RowX + b * PassColStep;
+                UiKit.Fill(trait, "column", px, PassTop, PassColW, PassH, Plate);
+                UiKit.Label(trait, Talents.BranchName(_classId, b), px + 10f, PassTop + 7f, 110f, 16f, 13, TextAnchor.UpperLeft, bc);
+                _passiveCount[b] = UiKit.Label(trait, "", px + PassColW - 70f, PassTop + 8f, 60f, 14f, 11, TextAnchor.UpperRight, UiKit.Dim);
             }
             foreach (var n in t.Nodes)
             {
                 if (n.Kind != TreeNodeKind.Key) continue;
                 var p = Pos(n);
-                UiKit.Label(trait, Talents.KeystoneName(n.Branch, n.KeyIndex), p.x - 36f, p.y + 25f, 72f, 12f, 10, TextAnchor.UpperCenter, UiKit.Dim)
-                    .horizontalOverflow = HorizontalWrapMode.Overflow;
+                float tx = p.x + 35f, top = p.y - KeyRowH / 2f;
+                var nm = UiKit.Label(trait, Talents.KeystoneName(n.Branch, n.KeyIndex), tx, top + 14f, KeyCellStep - 66f, 16f, 12, TextAnchor.UpperLeft, UiKit.Ink);
+                nm.horizontalOverflow = HorizontalWrapMode.Overflow;
+                var st = UiKit.Label(trait, "", tx, top + 34f, KeyCellStep - 66f, 14f, 11, TextAnchor.UpperLeft, UiKit.Dim);
+                st.horizontalOverflow = HorizontalWrapMode.Overflow;
+                _keyLabels.Add((nm, st, n));
             }
 
             // Trunk lines (skill to the next skill, under the nodes).
@@ -341,9 +378,12 @@ namespace Lanternkeeper.View
         {
             // Drawn frames at 1:1 (skill 44, evolution 52→48, keystone 56→48) and the small ones at ×2 (변형 20→40,
             // passive 16→32); every node takes clicks over at least 40 px (critique 6: a 12 px diamond read as no button).
+            // 갈래 강화 pips share a column, so each takes clicks over its own step only.
             float size = n.Kind == TreeNodeKind.Key || n.Kind == TreeNodeKind.Evolution ? 48f : n.Kind == TreeNodeKind.Mod ? 40f
                 : n.Kind == TreeNodeKind.Passive ? 32f : 44f;
-            float hit = Mathf.Max(size, 40f), off = (hit - size) / 2f;
+            float hit = Mathf.Max(size, 40f);
+            if (_dims.TryGetValue(n.Id, out var dim)) { size = dim.x; hit = Mathf.Max(size, dim.y); }
+            float off = (hit - size) / 2f;
             var p = Pos(n);
             var holder = UiKit.Rect(parent, n.Id, p.x - hit / 2f, p.y - hit / 2f, hit, hit);
             var hitArea = holder.gameObject.AddComponent<Image>();
@@ -352,7 +392,11 @@ namespace Lanternkeeper.View
             var nv = new NodeView { Node = n, Holder = holder.gameObject, Size = size };
             nv.Glow = UiKit.Fill(holder, "glow", off - 10f, off - 10f, size + 20f, size + 20f, Color.clear);
             nv.Glow.sprite = UiKit.Glow(_ui, 64); // soft halo, not a flat disc
-            nv.Frame = UiKit.Rect(holder, "frame", off, off, size, size).gameObject.AddComponent<Image>();
+            // Owned: a gold ring round the frame (critique 7 P0 #7: a bought 변형 or 진화 looked like one not bought).
+            float rp = n.Kind == TreeNodeKind.Passive ? 2f : 3f;
+            nv.Ring = UiKit.Fill(holder, "owned ring", off - rp, off - rp, size + 2f * rp, size + 2f * rp, UiKit.Gold);
+            nv.Ring.sprite = UiKit.Disc(_ui, 32, 2);
+            nv.Frame =UiKit.Rect(holder, "frame", off, off, size, size).gameObject.AddComponent<Image>();
             nv.Frame.sprite = FrameFor(n);
             nv.Frame.raycastTarget = false;
             if (n.Kind == TreeNodeKind.Skill || n.Kind == TreeNodeKind.Evolution || n.Kind == TreeNodeKind.Ultimate)
@@ -365,6 +409,9 @@ namespace Lanternkeeper.View
             // "+" = takeable now; the lock = closed for a reason other than points.
             nv.Plus = UiKit.Label(holder, "+", hit - 11f, -5f, 16f, 16f, 14, TextAnchor.MiddleCenter, UiKit.Good);
             nv.Lock = MakeLock(holder, hit - 10f, hit - 12f);
+            // ...and a gold check where a takeable node shows its "+": three states, three marks, one corner each.
+            // A 갈래 강화 pip keeps the ring alone (a check on each crowded the next pip).
+            if (n.Kind != TreeNodeKind.Passive) nv.Check = MakeCheck(holder, hit - 12f, -3f);
             var ptr = holder.gameObject.AddComponent<UiPointer>();
             ptr.Enter += () => { _hovered = n; ShowCard(); };
             ptr.Exit += () => { if (_hovered == n) { _hovered = null; ShowCard(); } };
@@ -383,6 +430,30 @@ namespace Lanternkeeper.View
             UiKit.Fill(l, "lock shackle", 7f, 0f, 1f, 5f, c);
             UiKit.Fill(l, "lock body", 1f, 5f, 9f, 7f, c);
             return l.gameObject;
+        }
+
+        /// <summary>A gold coin with a dark check, drawn from a disc and two strokes (the font may not carry ✓).</summary>
+        GameObject MakeCheck(RectTransform holder, float x, float y)
+        {
+            var c = UiKit.Rect(holder, "owned", x, y, 15f, 15f);
+            var coin = c.gameObject.AddComponent<Image>();
+            coin.sprite = UiKit.Disc(_ui, 16, 0);
+            coin.color = UiKit.Gold;
+            coin.raycastTarget = false;
+            var ink = new Color(0.16f, 0.1f, 0.03f);
+            Stroke(c, new Vector2(3.5f, 7.5f), new Vector2(6.5f, 10.5f), ink);
+            Stroke(c, new Vector2(6f, 10.5f), new Vector2(11.5f, 4.5f), ink);
+            return c.gameObject;
+        }
+
+        static void Stroke(RectTransform parent, Vector2 a, Vector2 b, Color col)
+        {
+            var d = b - a;
+            var rt = UiKit.Fill(parent, "stroke", 0f, 0f, 1f, 1f, col).rectTransform;
+            rt.pivot = new Vector2(0f, 0.5f);
+            rt.anchoredPosition = new Vector2(a.x, -a.y);
+            rt.sizeDelta = new Vector2(d.magnitude + 1f, 2f);
+            rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg);
         }
 
         Sprite FrameFor(TreeNode n)
@@ -411,6 +482,35 @@ namespace Lanternkeeper.View
 
         /// <summary>The 변형 in a word and a number, to fit under its node (the card spells it out).</summary>
         static string ModShort(TreeMod m) => m == TreeMod.Copy ? "분신 +1" : m == TreeMod.Area ? "범위 +20%" : m == TreeMod.Cooldown ? "대기 −15%" : "위력 +20%";
+
+        /// <summary>A 특성 section head: the name in gold, what it is about beside it, a rule over it.</summary>
+        static void Head(RectTransform parent, float y, string name, string about)
+        {
+            if (y > UltHeadY) UiKit.Fill(parent, "rule", RowX - 4f, y - 4f, RowW + 8f, 1f, UiKit.Line);
+            UiKit.Label(parent, name + "  <color=#8a8178><size=11>" + about + "</size></color>", 24f, y, RowW - 8f, 16f, 13, TextAnchor.UpperLeft, UiKit.Gold)
+                .horizontalOverflow = HorizontalWrapMode.Overflow;
+        }
+
+        // What each ultimate does, in one line for its card (as the cut-in's lines; the card on the right spells it out).
+        static readonly Dictionary<string, string> UltLines = new Dictionary<string, string>
+        {
+            { "forge_judgment", "일대를 태우고 공명을 채웁니다" },
+            { "undying_flame", "8초간 사망 연쇄가 약해지지 않습니다" },
+            { "grand_judgment", "일대에 벼락을 내리고 공명을 채웁니다" },
+            { "sanctuary", "8초간 덜 맞고, 맞으면 되받아칩니다" },
+            { "thunderstorm", "8초간 벼락이 잇따라 떨어집니다" },
+            { "hunt_time", "8초간 두 배로 빠르게 몰아칩니다" },
+            { "star_collapse", "일대를 무너뜨리고 공명을 채웁니다" },
+            { "eternal_moment", "6초간 고리가 쉬지 않고 돕니다" },
+        };
+
+        static string UltimateLine(string id)
+        {
+            if (UltLines.TryGetValue(id, out var line)) return line;
+            string text = GameText.Skill(id) ?? "";
+            int dot = text.IndexOf(". ", StringComparison.Ordinal);
+            return dot > 0 ? text.Substring(0, dot + 1) : text;
+        }
 
         // ---------- per frame ----------
 
@@ -460,8 +560,14 @@ namespace Lanternkeeper.View
                 foreach (var n in tree.Nodes)
                     if (n.Kind == TreeNodeKind.Passive && n.Branch == b) { all++; if (SkillTree.Has(h, n.Id)) have++; }
                 _branchPoints[b].text = "갈래 포인트 " + SkillTree.BranchPoints(h, b);
-                _passiveCount[b].text = have + " / " + all + " 습득";
+                _passiveCount[b].text = (have == all ? "<color=#ffcf5a>" : have > 0 ? "<color=#e8e0d0>" : "") + have + " / " + all + (have > 0 ? "</color>" : "");
             }
+            foreach (var (label, status, n) in _keyLabels)
+            {
+                label.color = SkillTree.Has(h, n.Id) ? UiKit.Ink : UiKit.Dim;
+                status.text = Status(h, n);
+            }
+            foreach (var (edge, n) in _ultEdges) edge.SetActive(SkillTree.Has(h, n.Id));
 
             foreach (var (child, line) in _edges)
             {
@@ -478,10 +584,15 @@ namespace Lanternkeeper.View
                 var dim = new Color(0.6f, 0.6f, 0.6f);
                 nv.Frame.color = taken ? Color.white : open ? new Color(0.92f, 0.9f, 0.86f) : dim;
                 if (nv.Icon != null) nv.Icon.color = taken ? Color.white : open ? new Color(0.85f, 0.85f, 0.85f) : dim;
-                nv.Glow.color = taken ? new Color(1f, 0.78f, 0.36f, n.Kind == TreeNodeKind.Passive || n.Kind == TreeNodeKind.Mod ? 0.8f : 0.65f) : Color.clear;
+                // The ring and check carry "owned" now; the halo stays faint (a pip's crowded its neighbours and name).
+                nv.Glow.color = taken && n.Kind != TreeNodeKind.Passive ? new Color(1f, 0.78f, 0.36f, 0.35f) : Color.clear;
                 if (nv.Mark != null) nv.Mark.color = taken ? UiKit.Gold : open ? UiKit.Ink : new Color(0.55f, 0.52f, 0.48f);
                 nv.Plus.enabled = open;
-                nv.Lock.SetActive(!taken && !open && block != "포인트 부족");
+                // A keystone short of its 갈래 points is locked even when points are short too (its line says "갈래 9P 필요").
+                bool gated = n.Kind == TreeNodeKind.Key && SkillTree.BranchPoints(h, n.Branch) < SkillTree.KeyThreshold[n.KeyIndex];
+                nv.Lock.SetActive(!taken && !open && (block != "포인트 부족" || gated));
+                nv.Ring.enabled = taken;
+                if (nv.Check != null) nv.Check.SetActive(taken);
             }
             ShowCard();
         }
@@ -489,9 +600,18 @@ namespace Lanternkeeper.View
         /// <summary>The short line beside a skill or ultimate: owned, takeable, or what it waits for.</summary>
         static string Status(Hero h, TreeNode n)
         {
-            if (SkillTree.Has(h, n.Id)) return "<color=#9fd28a>배움</color>";
+            bool ult = n.Kind == TreeNodeKind.Ultimate;
+            if (SkillTree.Has(h, n.Id)) return ult ? "<color=#ffcf5a>선택함</color>" : "<color=#9fd28a>배움</color>";
             string block = SkillTree.Blocker(h, n);
-            if (block == null) return "<color=#ffd38a>+ 지금 배울 수 있음</color>";
+            if (block == null) return ult ? "<color=#ffd38a>+ 고를 수 있음</color>" : "<color=#ffd38a>+ 배울 수 있음</color>";
+            // The other one was picked: "포인트 부족" here read as a contradiction (critique 7).
+            if (ult) foreach (var id in h.TreeNodes) if (id.StartsWith("u:", StringComparison.Ordinal)) return "<color=#8a8178>선택 안 함</color>";
+            if (n.Kind == TreeNodeKind.Key)
+            {
+                int at = SkillTree.KeyThreshold[n.KeyIndex];
+                if (SkillTree.BranchPoints(h, n.Branch) < at) return "<color=#d8907a>갈래 " + at + "P 필요</color>";
+                return block == "선행 노드 필요" ? "<color=#d8907a>선행 스킬 필요</color>" : "<color=#8a8178>" + block + "</color>";
+            }
             int need = n.Kind == TreeNodeKind.Ultimate ? SkillBook.UltimateLevel : SkillBook.Get(n.SkillId).Unlock;
             if (need > h.IntegratedLevel) return "<color=#d8907a>필요 Lv " + need + "</color>";
             if (block == "선행 노드 필요") return "<color=#d8907a>윗줄 스킬을 먼저</color>";

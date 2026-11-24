@@ -195,6 +195,9 @@ namespace Lanternkeeper.View
             n.ShadowMr.enabled = true;
         }
 
+        /// <summary>A viewport rect where no number shows (the find card while it is up; critique 7 P0).</summary>
+        public static Rect Blocked;
+
         public void Render(float dt)
         {
             var cam = Camera.main;
@@ -221,7 +224,7 @@ namespace Lanternkeeper.View
                 if (cam != null)
                 {
                     var vp = cam.WorldToViewportPoint(n.Text.transform.position);
-                    bool show = vp.y <= 0.88f && vp.y >= 0.18f && vp.x <= 0.92f && vp.x >= 0.02f;
+                    bool show = vp.y <= 0.88f && vp.y >= 0.18f && vp.x <= 0.92f && vp.x >= 0.02f && !Blocked.Contains(new Vector2(vp.x, vp.y));
                     if (n.Mr.enabled != show) n.Mr.enabled = n.ShadowMr.enabled = show;
                 }
             }

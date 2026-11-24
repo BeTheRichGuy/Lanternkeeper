@@ -27,7 +27,30 @@ namespace Lanternkeeper.View
         readonly RectTransform _lifeOrb, _waxOrb;
         readonly Image _blood, _heart, _igniteGlow, _wax;
         readonly Text _igniteText, _lifeText, _waxText;
-        bool _hoverWax;
+        bool _hoverWax, _hoverHeat;
+        readonly Image[] _todo = new Image[16];
+        float _todoAt;
+
+        /// <summary>
+        /// Plan D3, every second: 가방 gets a dot when a bag piece is ▲ or ⇄ for the hero (auto-equip leaves those to the
+        /// player), 스킬 트리 when points are left and 자동 분배 is off. Opening the window answers why.
+        /// </summary>
+        void RenderTodo()
+        {
+            if (Time.unscaledTime < _todoAt) return;
+            _todoAt = Time.unscaledTime + 1f;
+            var h = _world.Hero;
+            bool bag = false;
+            foreach (var it in _world.Bag.Items)
+            {
+                var a = HeroStats.Compare(h, it).Arrow;
+                if (a == GearArrow.Up || a == GearArrow.BigUp || a == GearArrow.Trade) { bag = true; break; }
+            }
+            bool tree = !h.TreeAuto && SkillTree.Points(h) > SkillTree.Spent(h);
+            for (int i = 0; i < Menu.Length && i < _todo.Length; i++)
+                if (_todo[i] != null) _todo[i].enabled = (i == 0 && bag) || (i == 2 && tree);
+        }
+        Image _heatBack;
         int _lifeKey = -1, _waxKey = -1;
         static Sprite _square;
         float _hpShown = 1f, _xpShown;
@@ -147,12 +170,18 @@ namespace Lanternkeeper.View
             _waxText = UiKit.Label(_waxOrb, "", -24f, -14f, Orb + 48f, 12f, 12, TextAnchor.UpperCenter, new Color(1f, 0.8f, 0.5f));
 
             // the class resource: a thin line over the four slots
-            UiKit.Fill(_bar, "heat back", HeatX, SlotY - 5f, HeatW, 3f, new Color(0f, 0f, 0f, 0.6f));
-            _heat = UiKit.Fill(_bar, "heat", HeatX, SlotY - 5f, HeatW, 2f, Color.white);
+            // Plan F4: 4 px (was 2) and a hover line on what it does.
+            var heatBack = UiKit.Fill(_bar, "heat back", HeatX, SlotY - 7f, HeatW, 5f, new Color(0f, 0f, 0f, 0.6f));
+            heatBack.raycastTarget = true;
+            var hp2 = heatBack.gameObject.AddComponent<UiPointer>();
+            hp2.Enter = () => _hoverHeat = true;
+            hp2.Exit = () => _hoverHeat = false;
+            _heatBack = heatBack;
+            _heat = UiKit.Fill(_bar, "heat", HeatX, SlotY - 6f, HeatW, 4f, Color.white);
             // The bar's name, as the class card says it (loop 4: "자원 열기" on the card, an unnamed line here).
             // 11 px and readable ink (critique 6 P0: at 8 px in the 명조 set it was an unreadable smudge).
             // Centred over the bar, clear of the corner candles (critique 7 P0: at the bar's right end the wax hid it).
-            UiKit.Label(_bar, ClassSelectPanel.ResourceOf(world.Hero.ClassId), HeatX + HeatW / 2f - 40f, SlotY - 19f, 80f, 13f, 11, TextAnchor.UpperCenter, new Color(0.85f, 0.8f, 0.7f));
+            // (critique 8 P0: no spot over the bar is free of the frame art — the name lives in the gauge's hover card.)
 
             for (int i = 0; i < 4; i++)
             {
@@ -261,6 +290,10 @@ namespace Lanternkeeper.View
                 p.Enter = () => { hover.enabled = true; _hoverMenu = index; };
                 p.Exit = () => { hover.enabled = false; if (_hoverMenu == index) _hoverMenu = -1; };
                 p.LeftClick = () => OpenMenu?.Invoke(index);
+                // Plan D3: an orange dot on a menu with something to do now (a better piece in the bag, tree points left).
+                _todo[i] = UiKit.Fill(back.transform, "todo", -3f, B - 6f, 9f, 9f, new Color(1f, 0.6f, 0.2f, 1f)); // bottom-left: clear of the hunt board above (critique 8 P0)
+                _todo[i].sprite = UiKit.Disc(ui, 9, 0);
+                _todo[i].enabled = false;
             }
 
             // ---------- hover card ----------
@@ -285,9 +318,11 @@ namespace Lanternkeeper.View
         /// in half). The orbs and the skill bar stay.
         /// </summary>
         Text _dropsLabel;
+        bool _windowOpen;
 
         public void SetWindowOpen(bool open)
         {
+            _windowOpen = open;
             _igniteText.enabled = _lifeText.enabled = _waxText.enabled = _dropsLabel.enabled = !open;
             foreach (var d in _drops) if (d.Root.gameObject.activeSelf == open) d.Root.gameObject.SetActive(!open); // the icons too (critique 7 P0)
         }
@@ -329,6 +364,7 @@ namespace Lanternkeeper.View
 
             RenderSkills(h, k, t);
             RenderDrops();
+            RenderTodo();
 
             float xpTarget = Mathf.Clamp01((float)h.Xp / h.XpToNext);
             _xpShown = xpTarget < _xpShown - 0.5f ? xpTarget : Mathf.Lerp(_xpShown, xpTarget, k); // a level-up wraps at once
@@ -390,7 +426,7 @@ namespace Lanternkeeper.View
             _wax.color = tint;
             int waxKey = Mathf.FloorToInt(g * 100f);
             if (waxKey != _waxKey) { _waxKey = waxKey; _waxText.text = "대공명 " + waxKey + "%"; } // the gauge toward 대공명 (critique 7: "공명" here and "공명 0개" in the ring meant two things)
-            _heat.rectTransform.sizeDelta = new Vector2(Mathf.Round(HeatW * Mathf.Clamp01(h.Heat / SimWorld.HeatMax)), 2f);
+            _heat.rectTransform.sizeDelta = new Vector2(Mathf.Round(HeatW * Mathf.Clamp01(h.Heat / SimWorld.HeatMax)), 4f);
             _heat.color = h.ClassId == "oathknight" ? new Color(1f, 0.85f, 0.4f, 0.9f) : h.ClassId == "windhunter" ? new Color(0.55f, 0.95f, 0.75f, 0.9f)
                 : h.ClassId == "starseer" ? new Color(0.65f, 0.6f, 1f, 0.9f) : new Color(1f, 0.45f, 0.15f, 0.9f);
         }
@@ -492,7 +528,8 @@ namespace Lanternkeeper.View
             string key = null, text = null;
             RectTransform anchor = null;
             var h = _world.Hero;
-            var hs = _hoverSkill >= 0 ? h.Ring.Slots[_hoverSkill] : null;
+            // Under an open window no HUD card (critique 8 P0: a skill card leaked out below the codex).
+            var hs = _hoverSkill >= 0 && !_windowOpen ? h.Ring.Slots[_hoverSkill] : null;
             if (hs != null)
             {
                 h.SkillUses.TryGetValue(hs.BaseId, out int uses);
@@ -506,6 +543,7 @@ namespace Lanternkeeper.View
                 }
                 anchor = _frame[_hoverSkill].rectTransform;
             }
+            else if (_windowOpen) { }
             else if (_hoverVial)
             {
                 key = "v" + Mathf.CeilToInt(h.Stats.Hp) + (_world.Ignited ? 1 : 0) + Mathf.CeilToInt(_world.IgniteCooldownLeft);
@@ -518,8 +556,15 @@ namespace Lanternkeeper.View
             {
                 key = "w" + _waxKey;
                 if (key != _cardKey)
-                    text = "<b>공명</b>  " + _waxKey + "%\n<color=#8a8178>원소가 서로 터질 때마다 촛농이 차오르고, 가득 차면 대공명이 터진다</color>";
+                    text = "<b>대공명</b>  " + _waxKey + "%\n<color=#8a8178>원소가 서로 터질 때마다 촛농이 차오르고, 가득 차면 대공명이 터진다</color>";
                 anchor = _waxOrb;
+            }
+            else if (_hoverHeat)
+            {
+                key = "h";
+                if (key != _cardKey)
+                    text = "<b>" + ClassSelectPanel.ResourceOf(h.ClassId) + "</b>  직업 자원\n<color=#8a8178>싸울수록 찹니다. 가득 차면 다음 스킬이 위력 1.5배 · 범위 +30%로 나갑니다</color>";
+                anchor = _heatBack.rectTransform;
             }
             // The menu needs no card: each button shows its name beside it and its key on a badge (loop 3).
             if (key == null) { if (_cardKey != null) { _cardKey = null; _card.gameObject.SetActive(false); } return; }

@@ -86,6 +86,8 @@ namespace Lanternkeeper.Sim
             new AffixDef { Stat = Stat.EmberPct,           Min = 6f,   Max = 10f,  Slots = new[] { Slot.Weapon, Slot.Amulet, Slot.Gloves, Slot.Helm }, Adjective = "타오르는", Label = "잿불 피해 +{0}%", Percent = true },
             new AffixDef { Stat = Stat.FrostPct,           Min = 6f,   Max = 10f,  Slots = new[] { Slot.Weapon, Slot.Amulet, Slot.Gloves, Slot.Helm }, Adjective = "서리 낀", Label = "서리 피해 +{0}%", Percent = true },
             new AffixDef { Stat = Stat.ShockPct,           Min = 6f,   Max = 10f,  Slots = new[] { Slot.Weapon, Slot.Amulet, Slot.Gloves, Slot.Helm }, Adjective = "번개 서린", Label = "전격 피해 +{0}%", Percent = true },
+            new AffixDef { Stat = Stat.RotPct,             Min = 6f,   Max = 10f,  Slots = new[] { Slot.Weapon, Slot.Amulet, Slot.Gloves, Slot.Helm }, Adjective = "썩어 가는", Label = "부패 피해 +{0}%", Percent = true },
+            new AffixDef { Stat = Stat.VoidPct,            Min = 6f,   Max = 10f,  Slots = new[] { Slot.Weapon, Slot.Amulet, Slot.Gloves, Slot.Helm }, Adjective = "공허에 물든", Label = "공허 피해 +{0}%", Percent = true },
             new AffixDef { Stat = Stat.ResonancePct,       Min = 8f,   Max = 14f,  Slots = new[] { Slot.Amulet, Slot.Ring, Slot.Weapon }, Adjective = "공명하는", Label = "공명 피해 +{0}%", Percent = true },
             new AffixDef { Stat = Stat.ChainRadiusPct,     Min = 5f,   Max = 10f,  Slots = new[] { Slot.Armor, Slot.Amulet, Slot.Belt }, Adjective = "번지는", Label = "연쇄 범위 +{0}%", Percent = true },
             new AffixDef { Stat = Stat.RegenPct,           Min = 0.3f, Max = 0.6f, Slots = new[] { Slot.Armor, Slot.Belt, Slot.Ring }, Adjective = "되살아나는", Label = "초당 생명력 회복 +{0}%", Percent = true },

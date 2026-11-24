@@ -27,7 +27,7 @@ namespace Lanternkeeper.Sim
     /// <summary>Everything gear and level add up to. Recomputed whenever gear or level changes.</summary>
     public sealed class Derived
     {
-        public float DamagePct, EmberPct, FrostPct, ShockPct, ResonancePct;
+        public float DamagePct, EmberPct, FrostPct, ShockPct, RotPct, VoidPct, ResonancePct;
         public float CritChance = 0.05f, CritMult = 1.5f;
         public float DamageReduction, RegenPctPerSec, XpPct, MagicFindPct, ChainRadiusPct;
         /// <summary>Skill area (+%), extra copies of every projectile and targeted skill, and reach (+%).</summary>
@@ -46,6 +46,8 @@ namespace Lanternkeeper.Sim
                 case Element.Ember: return EmberPct;
                 case Element.Frost: return FrostPct;
                 case Element.Shock: return ShockPct;
+                case Element.Rot: return RotPct;
+                case Element.Void: return VoidPct;
                 default: return 0f;
             }
         }
@@ -163,6 +165,8 @@ namespace Lanternkeeper.Sim
             d.EmberPct = Sum(Stat.EmberPct) / 100f;
             d.FrostPct = Sum(Stat.FrostPct) / 100f;
             d.ShockPct = Sum(Stat.ShockPct) / 100f;
+            d.RotPct = Sum(Stat.RotPct) / 100f;
+            d.VoidPct = Sum(Stat.VoidPct) / 100f;
             d.ResonancePct = Sum(Stat.ResonancePct) / 100f;
             d.CritChance = Math.Min(0.75f, 0.05f + Sum(Stat.CritChancePct) / 100f);
             d.CritMult = 1.5f + Sum(Stat.CritDamagePct) / 100f;
@@ -188,7 +192,8 @@ namespace Lanternkeeper.Sim
 
         static float Dps(Stats s, Derived d)
         {
-            float elem = (d.EmberPct + d.FrostPct + d.ShockPct) / 3f;
+            // 11-24 F2: rot and void count as much per point as the first three did (÷3 kept so old valuations stay).
+            float elem = (d.EmberPct + d.FrostPct + d.ShockPct + d.RotPct + d.VoidPct) / 3f;
             float crit = 1f + d.CritChance * (d.CritMult - 1f);
             // Area and extra copies clear packs: worth a share of a damage bonus when comparing gear.
             float clear = 1f + d.AreaPct * 0.5f + d.Projectiles * 0.25f + d.RangePct * 0.15f + d.CooldownCut * 0.5f;

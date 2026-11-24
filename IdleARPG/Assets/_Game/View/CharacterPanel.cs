@@ -48,7 +48,8 @@ namespace Lanternkeeper.View
             _right = UiKit.Label(_win, "", 32f + cw, 148f, cw, 340f, 12, TextAnchor.UpperLeft, labelInk);
             _right.raycastTarget = true;
             _rightValues = UiKit.Label(_win, "", 32f + cw, 148f, cw, 340f, 12, TextAnchor.UpperRight, UiKit.Ink);
-            foreach (var t in new[] { _left, _leftValues, _right, _rightValues }) t.lineSpacing = 1.05f;
+            // 0.95 (was 1.05): with five element lines (F2) and three cards the left column runs 22 lines in 340.
+            foreach (var t in new[] { _left, _leftValues, _right, _rightValues }) t.lineSpacing = 0.95f;
             UiKit.Fill(_win, "column rule", W / 2f, 150f, 1f, 330f, UiKit.Line);
             // UX plan C2: every line explains itself - hover a line and its meaning shows in this bar (Diablo II's way).
             UiKit.Fill(_win, "explain back", 12f, H - 58f, W - 24f, 48f, new Color(0f, 0f, 0f, 0.35f));
@@ -95,6 +96,8 @@ namespace Lanternkeeper.View
                 case "잿불 피해": return Stat(Sim.Stat.EmberPct);
                 case "서리 피해": return Stat(Sim.Stat.FrostPct);
                 case "전격 피해": return Stat(Sim.Stat.ShockPct);
+                case "부패 피해": return Stat(Sim.Stat.RotPct);
+                case "공허 피해": return Stat(Sim.Stat.VoidPct);
                 case "스킬 범위": return Stat(Sim.Stat.AreaPct);
                 case "사거리": return Stat(Sim.Stat.RangePct);
                 case "투사체 및 분신": return Stat(Sim.Stat.ProjectileCount);
@@ -147,8 +150,15 @@ namespace Lanternkeeper.View
             var d = h.Derived;
 
             _title.text = "능력치 · " + SkillBook.ClassName(h.ClassId);
+            // 성장 in the head line (11-24: with five element lines the columns overflowed): 통합 레벨 when it differs, then
+            // 잔불 · 심지 · 환생 when there are any.
             _head.text = "<color=#ffcf5a>" + SkillBook.ClassName(h.ClassId) + "</color>   레벨 " + h.Level
-                + (h.EmberLevel > 0 ? "  <color=#9a948c>+" + h.EmberLevel + " 잔불</color>" : "")
+                + "<color=#9a948c>"
+                + (h.IntegratedLevel != h.Level ? "  · 통합 " + h.IntegratedLevel : "")
+                + (h.EmberLevel > 0 ? "  · 잔불 " + h.EmberLevel : "")
+                + (h.WickLevel > 0 ? "  · 심지 " + h.WickLevel : "")
+                + (h.Rebirths > 0 ? "  · 환생 " + h.Rebirths + "회" : "")
+                + "</color>"
                 + "\n<color=#8a8178>경험치 " + h.Xp.ToString("N0") + " / " + h.XpToNext.ToString("N0") + "</color>";
             _xp.rectTransform.sizeDelta = new Vector2(Mathf.Round((W - 32f) * Mathf.Clamp01((float)h.Xp / Mathf.Max(1, h.XpToNext))), 4f);
             _dps.text = HeroStats.Dps(h).ToString("N0");
@@ -178,18 +188,8 @@ namespace Lanternkeeper.View
             Row(l, lv, "잿불 피해", Pct(d.EmberPct), d.EmberPct > 0f);
             Row(l, lv, "서리 피해", Pct(d.FrostPct), d.FrostPct > 0f);
             Row(l, lv, "전격 피해", Pct(d.ShockPct), d.ShockPct > 0f);
-
-            // The cards under 원소 in the left column: on the right they ran into the explain bar (loop 1 P0-6).
-            Gap(l, lv);
-            Head(l, lv, "증강 카드 (" + h.Augments.Count + " / " + Augments.SlotsAt(h.Level) + ")");
-            foreach (var id in h.Augments)
-            {
-                var a = Augments.Get(id);
-                if (a == null) continue;
-                string col = a.Tier == AugTier.Prism ? "#d8b4ff" : a.Tier == AugTier.Gold ? "#ffcf5a" : "#cdd6e6";
-                l.Append("<color=" + col + ">" + a.Name + "</color>").Append('\n');
-                lv.Append("<color=#8a8178>" + Augments.TierName(a.Tier) + " 등급</color>").Append('\n');
-            }
+            Row(l, lv, "부패 피해", Pct(d.RotPct), d.RotPct > 0f); // 11-24 F2: all five elements
+            Row(l, lv, "공허 피해", Pct(d.VoidPct), d.VoidPct > 0f);
 
             Head(r, rv, "스킬");
             Row(r, rv, "스킬 범위", Pct(d.AreaPct), d.AreaPct > 0f);
@@ -204,11 +204,16 @@ namespace Lanternkeeper.View
             Row(r, rv, "경험치 획득", Pct(d.XpPct), d.XpPct > 0f);
             Row(r, rv, "마법 아이템 발견", Pct(d.MagicFindPct / 100f), d.MagicFindPct > 0f);
             Gap(r, rv);
-            Head(r, rv, "성장");
-            Row(r, rv, "통합 레벨", h.IntegratedLevel.ToString(), true);
-            Row(r, rv, "잔불 레벨", h.EmberLevel.ToString(), h.EmberLevel > 0);
-            Row(r, rv, "심지 레벨", h.WickLevel.ToString(), h.WickLevel > 0);
-            Row(r, rv, "환생", h.Rebirths + "회", h.Rebirths > 0);
+            // The cards in the right column now that 성장 lives in the head line (the left one holds five element lines).
+            Head(r, rv, "증강 카드 (" + h.Augments.Count + " / " + Augments.SlotsAt(h.Level) + ")");
+            foreach (var id in h.Augments)
+            {
+                var a = Augments.Get(id);
+                if (a == null) continue;
+                string col = a.Tier == AugTier.Prism ? "#d8b4ff" : a.Tier == AugTier.Gold ? "#ffcf5a" : "#cdd6e6";
+                r.Append("<color=" + col + ">" + a.Name + "</color>").Append('\n');
+                rv.Append("<color=#8a8178>" + Augments.TierName(a.Tier) + " 등급</color>").Append('\n');
+            }
             _left.text = l.ToString().TrimEnd('\n');
             _leftValues.text = lv.ToString().TrimEnd('\n');
             _right.text = r.ToString().TrimEnd('\n');

@@ -16,6 +16,8 @@ namespace Lanternkeeper.Sim
         // 희승: effects should multiply and spread as the hero grows — area, extra projectiles, reach.
         AreaPct, ProjectileCount, RangePct,
         CooldownPct,
+        // 11-24 F2: the other two elements. Appended so saved stat ids (ints in AffixRoll) keep their meaning.
+        RotPct, VoidPct,
     }
 
     [Serializable]

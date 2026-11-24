@@ -133,7 +133,7 @@ namespace Lanternkeeper.View
         public const string BoneFrame = "ui/ui4_window_bone";
 
         /// <summary>Where the top-centre HUD (level, ETA, the next goal) ends, in reference pixels.</summary>
-        public const float TopHudBottom = 66f; // the frames' spikes stand ~14 px over the window
+        public const float TopHudBottom = 58f; // the 다음: line ends at 44; the frames' spikes stand ~14 px over the window
 
         /// <summary>
         /// How far a window of height <paramref name="h"/> sits above the centre: as in Diablo II the bottom panel stays in
@@ -143,7 +143,8 @@ namespace Lanternkeeper.View
         public static float Lift(float h)
         {
             float top = RefHeight / 2f - h / 2f, bottom = RefHeight / 2f + h / 2f;
-            return Mathf.Max(0f, Mathf.Min(bottom - 600f, top - TopHudBottom)); // never over the level and 다음: lines (loop 1 P0-6)
+            // 592: the bone frame hangs 8 px under the body, and that edge too stays off the bar (critique 8 P0).
+            return Mathf.Max(0f, Mathf.Min(bottom - 592f, top - TopHudBottom)); // never over the level and 다음: lines (loop 1 P0-6)
         }
 
         public RectTransform Window(string name, float w, float h, string title, Action onClose, out Text titleText, string frameKey = null)

@@ -108,6 +108,8 @@ namespace Lanternkeeper.View
                 case Stat.EmberPct: return ("잿불", "#FF8A4A");
                 case Stat.FrostPct: return ("서리", "#8FD4FF");
                 case Stat.ShockPct: return ("전격", "#FFE36A");
+                case Stat.RotPct: return ("부패", "#9BD15A"); // SkillCard's element colours
+                case Stat.VoidPct: return ("공허", "#B78CFF");
                 default: return null;
             }
         }

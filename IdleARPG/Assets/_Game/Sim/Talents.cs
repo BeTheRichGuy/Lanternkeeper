@@ -70,7 +70,7 @@ namespace Lanternkeeper.Sim
                     switch (Pattern[b][i % Pattern[b].Length])
                     {
                         case TalentStat.DamagePct: d.DamagePct += 0.02f; break;
-                        case TalentStat.ElementPct: d.EmberPct += 0.03f; d.FrostPct += 0.03f; d.ShockPct += 0.03f; break;
+                        case TalentStat.ElementPct: d.EmberPct += 0.03f; d.FrostPct += 0.03f; d.ShockPct += 0.03f; d.RotPct += 0.03f; d.VoidPct += 0.03f; break;
                         case TalentStat.CritChance: d.CritChance = Math.Min(0.75f, d.CritChance + 0.01f); break;
                         case TalentStat.AttackSpeed: s.AttackSpeed *= 1.02f; break;
                         case TalentStat.MaxHpPct: hpPct += 0.03f; break;

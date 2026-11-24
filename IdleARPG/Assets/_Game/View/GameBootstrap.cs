@@ -145,6 +145,9 @@ namespace Lanternkeeper.View
             _reveal = new LootReveal(_ui); // 11-24: a legendary or unique find gets its own card
             _reveal.OnOpenBag = () => { if (!_gear.Visible) OpenFromMenu(0); };
             _reveal.OnEquipped = () => _saveSoon = true;
+            // Its own sting as the card lands, apart from the drop's chime (critique 7 #1): 진화's swell for a unique, the
+            // runeword's for a legendary.
+            _reveal.OnShown = it => _audio.Sfx(it.Rarity == Rarity.Unique ? "evolve" : "runeword");
             if (report != null && !report.Empty)
             {
                 _offline.Show(report, World);

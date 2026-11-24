@@ -144,6 +144,9 @@ namespace Lanternkeeper.View
             _detailBody.lineSpacing = 1.12f;
             _detailBarBack = UiKit.Fill(_place, "bar", dx, 118f, 72f, 3f, new Color(0f, 0f, 0f, 0.6f));
             _detailBarFill = UiKit.Fill(_place, "bar fill", dx, 118f, 0f, 3f, new Color(0.66f, 0.82f, 1f, 0.95f));
+            // Critique 7 #3: nine lines in six colours. The card says three things; the rest waits behind 자세히.
+            var more = ui.Button(_place, "자세히", dx + dw - 64f, 222f, 64f, 20f, () => { _cardFull = !_cardFull; _stamp = -1; });
+            _moreLabel = more.GetComponentInChildren<Text>();
 
             // ---------- pickers ----------
             // Critique 6: the skill row and the 21 glyphs stood under the card at once. A switch shows one picker at a time.
@@ -227,6 +230,20 @@ namespace Lanternkeeper.View
         readonly Image[] _tabBar = new Image[3];
         readonly Text _resHint;
         int _tab;
+
+        bool _cardFull;
+        Text _moreLabel;
+
+        /// <summary>The short card: what the skill does, its numbers line, and its 숙련 line (the first one that names it).</summary>
+        static string Compact(string full)
+        {
+            var lines = full.Split('\n');
+            var sb = new StringBuilder();
+            int kept = 0;
+            for (int i = 0; i < lines.Length && kept < 2; i++) { if (lines[i].Trim().Length == 0) continue; sb.Append(lines[i]).Append('\n'); kept++; }
+            foreach (var l in lines) if (l.Contains("숙련 ") && !l.Contains("다음 숙련")) { sb.Append(l); break; }
+            return sb.ToString().TrimEnd('\n');
+        }
 
         readonly Text[] _pickText = new Text[2];
         readonly Image[] _pickBar = new Image[2];
@@ -428,7 +445,7 @@ namespace Lanternkeeper.View
                 _linkNames[i].text = j == 0 && name.Length > 0 ? "4 → 1  " + name : name;
             }
 
-            _resTable.text = ResonanceTable(ring, open);
+            _resTable.text = ResonanceTable(ring, open, advise: h.UseCustomRing); // no advice to break a recommended set (critique 8 P0)
             // With a recommended set in use, no advice to break it (critique 7 P0): the set's name and what it sets off.
             var hint = ResonanceHint(ring, open);
             bool firing = hint.StartsWith("지금 공명 <color=#ffcf5a>", StringComparison.Ordinal);
@@ -462,7 +479,8 @@ namespace Lanternkeeper.View
                       .Append("   ").Append(Mark(bySigil)).Append(" 문양 ").Append(sel.EvolveSigilName)
                       .Append("   ").Append(Mark(byEssence)).Append(" 전설·고유 효과"); // the glossary's name for 정수 (loop 3)
                 }
-                _detailBody.text = sb.ToString();
+                _detailBody.text = _cardFull ? sb.ToString() : Compact(sb.ToString());
+                _moreLabel.text = _cardFull ? "간단히" : "자세히";
                 SetBar(_detailBarFill, Progress(uses, lv), 72f);
             }
 
@@ -591,7 +609,7 @@ namespace Lanternkeeper.View
         };
 
         /// <summary>The resonance table: "잿불 각인 → 서리로 치면 = 파쇄 · …", lit where this ring sets it off.</summary>
-        static string ResonanceTable(SkillRing ring, int open)
+        static string ResonanceTable(SkillRing ring, int open, bool advise = true)
         {
             var on = new HashSet<Resonance>();
             for (int i = 0; i < 4; i++)
@@ -604,7 +622,7 @@ namespace Lanternkeeper.View
             // No forward link at all: say so, and the nearest fix (loop 3 P0: a ring of 중첩/약공명 went unremarked).
             bool anyForward = false;
             foreach (var r in on) if (Elements.IsForward(r)) anyForward = true;
-            if (!anyForward && open >= 2)
+            if (advise && !anyForward && open >= 2)
             {
                 for (int i = 0; i < open; i++)
                 {

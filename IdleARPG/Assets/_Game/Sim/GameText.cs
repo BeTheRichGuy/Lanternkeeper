@@ -268,6 +268,8 @@ namespace Lanternkeeper.Sim
                 case Lanternkeeper.Sim.Stat.EmberPct: return "잿불 피해 % — 잿불(화염) 스킬의 피해만 늘어납니다. 잿불기사와 화염 별점술사에게 좋습니다.";
                 case Lanternkeeper.Sim.Stat.FrostPct: return "서리 피해 % — 서리(냉기) 스킬의 피해만 늘어납니다. 서리 스킬이 고리에 많을 때만 좋습니다.";
                 case Lanternkeeper.Sim.Stat.ShockPct: return "전격 피해 % — 전격(번개) 스킬의 피해만 늘어납니다. 서약기사·바람사냥꾼·번개 별점술사에게 좋습니다.";
+                case Lanternkeeper.Sim.Stat.RotPct: return "부패 피해 % — 부패(독) 스킬의 피해만 늘어납니다. 독침 화살·부패의 구름을 쓰는 바람사냥꾼에게 좋습니다.";
+                case Lanternkeeper.Sim.Stat.VoidPct: return "공허 피해 % — 공허 스킬의 피해만 늘어납니다. 공허 관통·사냥꾼의 표식을 쓰는 바람사냥꾼과 별의 붕괴를 쓰는 별점술사에게 좋습니다.";
                 case Lanternkeeper.Sim.Stat.ResonancePct: return "공명 피해 % — 각인을 다른 원소로 터뜨릴 때 붙는 추가 피해가 늘어납니다. 원소를 섞어 쓰는 고리에 좋습니다.";
                 case Lanternkeeper.Sim.Stat.ChainRadiusPct: return "연쇄 범위 % — 각인된 적이 죽을 때의 폭발이 넓어져 사망 연쇄가 더 잘 이어집니다. 무리 사냥용.";
                 case Lanternkeeper.Sim.Stat.RegenPct: return "초당 생명력 회복 % — 매초 최대 생명력의 이만큼을 더 회복합니다(전투 중 기본 1%). 오래 버티는 데 좋습니다.";

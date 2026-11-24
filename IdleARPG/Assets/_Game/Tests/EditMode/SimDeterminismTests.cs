@@ -9,7 +9,9 @@ namespace Lanternkeeper.Tests
         // prefixes; earlier 1110536597557234290 for runes, 3550800341123455142, …).
         // 11-24 고유·전설 확장: the run's one legendary (t891) now rolls from the 잿불기사's own powers (폭발하는, was 산산조각 내는);
         // putting that one power back gives the old 14917481850882282425 exactly.
-        const ulong GoldenHash = 2265059884929124546UL;
+        // 11-24 F2 부패·공허 옵션: two more element lines in the affix pool and the class's main elements weighted ×3 change
+        // the drops; without both (same code otherwise) the run gives the old 2265059884929124546 exactly.
+        const ulong GoldenHash = 14909465061752900787UL;
         [Test]
         public void SimRng_same_seed_same_sequence()
         {

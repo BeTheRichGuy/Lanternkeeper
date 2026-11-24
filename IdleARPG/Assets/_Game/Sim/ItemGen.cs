@@ -82,9 +82,17 @@ namespace Lanternkeeper.Sim
             foreach (var a in ItemData.Affixes) if (Array.IndexOf(a.Slots, b.Slot) >= 0) pool.Add(a);
             int count = Math.Min(AffixCount(rng, rarity), pool.Count);
             int maxT = ItemData.MaxTier(ilvl);
+            var mainElems = ClassElements(classId);
+            int Weight(AffixDef a) => Array.IndexOf(mainElems, ElementOf(a.Stat)) >= 0 ? ClassElementWeight : 1;
             for (int i = 0; i < count; i++)
             {
-                var def = pool[rng.Range(0, pool.Count)];
+                // 11-24 F2 스마트 드롭: the class's main element lines weigh more. With no class every weight is 1 and
+                // this is the old uniform pick (same index, same rng use).
+                int total = 0;
+                foreach (var a in pool) total += Weight(a);
+                int r = rng.Range(0, total), k = 0;
+                while ((r -= Weight(pool[k])) >= 0) k++;
+                var def = pool[k];
                 pool.Remove(def);
                 int tier = rng.Range(Math.Max(1, maxT - 2), maxT + 1);
                 float v = rng.Range(def.Min, def.Max) * ItemData.TierScale[tier - 1];
@@ -166,6 +174,45 @@ namespace Lanternkeeper.Sim
             int maxT = ItemData.MaxTier(item.Ilvl);
             int tier = rng.Range(Math.Max(1, maxT - 2), maxT + 1);
             return new AffixRoll { Stat = def.Stat, Value = WholeIfCount(def.Stat, Round(rng.Range(def.Min, def.Max) * ItemData.TierScale[tier - 1]), tier), Tier = tier };
+        }
+
+        /// <summary>How much more often a class's main element line rolls than any other line (스마트 드롭, F2).</summary>
+        public const int ClassElementWeight = 3;
+
+        /// <summary>
+        /// 11-24 F2: a class's main elements — the two its skill list uses most (ties go to the earlier element), e.g.
+        /// 잿불기사 잿불·서리, 서약기사 전격·서리, 바람사냥꾼 전격·공허, 별점술사 잿불·서리. None for no class.
+        /// </summary>
+        public static Element[] ClassElements(string classId)
+        {
+            if (classId == null) return Array.Empty<Element>();
+            var n = new int[6];
+            foreach (var s in SkillBook.For(classId)) n[(int)s.Elem]++;
+            n[(int)Element.None] = 0;
+            var top = new List<Element>(2);
+            for (int pick = 0; pick < 2; pick++)
+            {
+                int best = 0;
+                for (int e = 1; e < n.Length; e++) if (n[e] > n[best]) best = e;
+                if (best == 0) break;
+                top.Add((Element)best);
+                n[best] = 0;
+            }
+            return top.ToArray();
+        }
+
+        /// <summary>The element an element-damage stat raises, or None.</summary>
+        public static Element ElementOf(Stat s)
+        {
+            switch (s)
+            {
+                case Stat.EmberPct: return Element.Ember;
+                case Stat.FrostPct: return Element.Frost;
+                case Stat.ShockPct: return Element.Shock;
+                case Stat.RotPct: return Element.Rot;
+                case Stat.VoidPct: return Element.Void;
+                default: return Element.None;
+            }
         }
 
         static bool HasUniqueFor(string classId) => Array.Exists(ItemData.Uniques, u => u.Fits(classId));
